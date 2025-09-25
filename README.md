@@ -13,10 +13,10 @@
 请按照以下步骤来配置和运行本项目。
 
 ### 1. 克隆本代码仓库
-'''bash
+```bash
 git clone [https://github.com/zhangzibo54-cmd/MyAITuberProject.git](https://github.com/zhangzibo54-cmd/MyAITuberProject.git)
 cd MyAITuberProject
-'''
+```
 2. 下载AI模型文件 (重要)
 本项目所需的AI模型文件体积较大，需要您手动下载并放置在指定的目录中。这些模型文件不应被上传到Git仓库。
 
@@ -42,15 +42,15 @@ Ollama 模型 (在云端服务器上执行):
 
 本项目依赖 llama3 和 nomic-embed-text 模型。在您的云端服务器环境中，请运行以下命令进行下载：
 
-'''base
+```base
 ollama pull llama3
 ollama pull nomic-embed-text
-'''
+```
 ---
 
 ### **第三部分：环境设置 (步骤3和4)**
 
-```markdown
+markdown
 ### 3. 构建与部署云端服务器
 本项目使用Docker进行环境打包和部署，以确保环境一致性。
 
@@ -70,6 +70,6 @@ ollama pull nomic-embed-text
 ### 4. 运行本地客户端
 在您的本地电脑上，配置好客户端程序（`local_client.py`）中的服务器地址，然后运行它以连接到云端大脑。
 
-'''bash
+```bash
 python local_client.py
-'''
+```
