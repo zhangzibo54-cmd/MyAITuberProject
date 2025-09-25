@@ -1,0 +1,70 @@
+# .gitignore for AITuber Project
+
+# 忽略所有Python的缓存和虚拟环境文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+*.env
+
+# 忽略所有大型AI模型文件
+# 按后缀名忽略
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.onnx
+
+# 按文件夹忽略 (强烈推荐)
+# 将您所有下载的模型都放在一个或多个专门的文件夹里
+models/
+GPT-SoVITS/models/
+pre-trained-speakers/
+Ollama_Models/
+
+# 忽略日志文件和临时数据
+*.log
+*.mp3
+
+
+# 忽略Python的缓存和虚拟环境
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+*.env
+
+# 忽略IDE的配置文件
+.vscode/
+.idea/
+
+# --- 核心忽略规则：针对您的角色模型文件夹 ---
+
+# 忽略 KusanagiNene 文件夹下的模型和音频文件
+# 但保留 config.json 等其他文件
+KusanagiNene/*.ckpt
+KusanagiNene/*.pth
+KusanagiNene/ref.wav
+
+# 忽略 XingTong 文件夹下的模型和音频文件
+XingTong/*.ckpt
+XingTong/*.pth
+XingTong/ref.wav
+
+
+
+# --- 通用忽略规则 (作为安全保障) ---
+
+# 忽略所有其他地方可能出现的大型模型文件
+*.safetokens
+*.bin
+*.onnx
+
+# 忽略运行时生成的日志文件
+# 注意：您的 devlog.md 是开发日志，应该保留，所以这里只忽略.log后缀
+*.log
+
+# 忽略Ollama下载的模型（如果它们被存储在项目目录中）
+Ollama_Models/
