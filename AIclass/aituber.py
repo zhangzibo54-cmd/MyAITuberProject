@@ -10,11 +10,11 @@ import threading
 import queue
 import time
 
-from main_engine import MainEngine
-from commands import Command
-from system_events import LogMessageEvent
-from system_events import AudioReadyEvent
-from system_events import TextChunkEvent
+from AIclass.main_engine import MainEngine
+from events_class.commands import Command
+from events_class.system_events import LogMessageEvent
+from events_class.system_events import AudioReadyEvent
+from events_class.system_events import TextChunkEvent
 
 # AItueber类
 

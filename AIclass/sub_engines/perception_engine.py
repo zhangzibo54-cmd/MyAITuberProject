@@ -7,8 +7,8 @@ import queue
 import ipywidgets as widgets
 from IPython.display import display as ipy_display, clear_output
 
-from perception_events import PerceptionEvent
-from system_events import LogMessageEvent
+from events_class.perception_events import PerceptionEvent
+from events_class.system_events import LogMessageEvent
 
 # ---------------------------------------------------------------------------
 #  V2 版本: 解决了UI重复和输出冲突的问题

@@ -9,7 +9,7 @@ from tts_empty import Tts_Empty
 from llama_index.embeddings.ollama import OllamaEmbedding
 from sub_engines.tts_gptsovits import TTSManager_GPTsovits
 
-from system_events import LogMessageEvent
+from events_class.system_events import LogMessageEvent
 
 # engine.py
 class MainEngine:

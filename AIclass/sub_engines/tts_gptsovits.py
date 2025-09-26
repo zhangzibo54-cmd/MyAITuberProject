@@ -29,8 +29,8 @@ import time
 from pydub import AudioSegment
 ###
 
-from system_events import LogMessageEvent
-from system_events import AudioReadyEvent
+from events_class.system_events import LogMessageEvent
+from events_class.system_events import AudioReadyEvent
 
 # read the output from llm(main),
 # put the output into the buffer and put in queue when it becomes a sentence(used by main),

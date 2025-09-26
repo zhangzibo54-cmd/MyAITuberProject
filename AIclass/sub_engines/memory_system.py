@@ -3,7 +3,7 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageCon
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core import Document
 
-from system_events import LogMessageEvent
+from events_class.system_events import LogMessageEvent
 
 import queue
 

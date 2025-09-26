@@ -2,9 +2,9 @@ import threading
 import time
 import queue
 
-from perception_events import PerceptionEvent
-from commands import Command
-from system_events import LogMessageEvent
+from events_class.perception_events import PerceptionEvent
+from events_class.commands import Command
+from events_class.system_events import LogMessageEvent
 # from commands import Command # 假设Command在单独文件中
 
 class DecisionEngine:
