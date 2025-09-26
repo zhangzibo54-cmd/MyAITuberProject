@@ -26,7 +26,7 @@ import re
 from IPython.display import Audio, display, clear_output # <-- 关键导入
 from io import BytesIO # <-- 关键导入
 import time
-from pydub import AudioSegment
+# from pydub import AudioSegment
 ###
 
 from events_class.system_events import LogMessageEvent

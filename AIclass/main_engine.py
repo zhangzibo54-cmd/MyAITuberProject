@@ -1,11 +1,12 @@
 
 import threading
 import queue
-from perception_engine import PerceptionEngine
-from memory_system import MemorySystem
-from decision_engine import DecisionEngine
+from sub_engines.perception_engine import PerceptionEngine
+from sub_engines.memory_system import MemorySystem
+from sub_engines.decision_engine import DecisionEngine
 
-from tts_empty import Tts_Empty
+from sub_engines.tts_empty import Tts_Empty
+
 from llama_index.embeddings.ollama import OllamaEmbedding
 from sub_engines.tts_gptsovits import TTSManager_GPTsovits
 
