@@ -12,6 +12,10 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     && rm -rf /var/lib/apt/lists/*
+    
+RUN apt-get update && apt-get install -y openssh-server
+RUN mkdir /var/run/sshd
+
 
 # 3. 安装Ollama
 # 这会把Ollama安装到容器里
@@ -25,6 +29,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 5. 克隆或复制其他项目代码，如下载GPT-SoVITS
 # 如果您的GPT-SoVITS代码在本地，就用COPY。如果是从GitHub拉取，就用RUN git clone
 # RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git ./GPT-SoVITS
+# 将启动脚本复制到容器中
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
 # 6. 复制您自己的所有项目代码到容器中
 COPY . .
@@ -41,7 +48,7 @@ RUN ollama serve & sleep 5 && \
 
 # 8. 暴露您服务器程序需要用到的端口
 EXPOSE 8888
-
+EXPOSE 22
 # 9. 定义容器启动时默认执行的命令
 # 例如，启动您的WebSocket服务器
-CMD ["python", "server.py"]
+CMD ["/start.sh"]
