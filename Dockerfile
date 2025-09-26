@@ -33,8 +33,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# 6. 复制您自己的所有项目代码到容器中
-COPY . .
+
 
 # 7. 【重要】提前下载AI模型
 # 这一步会将模型文件直接打包进镜像，巨大地节省每次启动服务器的时间
@@ -46,9 +45,27 @@ RUN ollama serve & sleep 5 && \
     pkill ollama
 # 你也可以在这里用Python脚本下载Whisper和GPT-SoVITS的模型
 
+
 # 8. 暴露您服务器程序需要用到的端口
 EXPOSE 8888
 EXPOSE 22
 # 9. 定义容器启动时默认执行的命令
+
+# 修复 SSH 公钥认证
+# 10. 创建 .ssh 目录并设置权限
+RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
+#  将你的公钥文件（id_ed25519.pub）复制到容器中
+# 假设你的公钥文件就在本地，名为 id_ed25519.pub
+COPY id_ed25519.pub /root/.ssh/authorized_keys
+#  设置正确的权限，这是 SSHD 要求的
+RUN chmod 600 /root/.ssh/authorized_keys
+
+
+# 6. 复制您自己的所有项目代码到容器中放在最下方目录不然会影响缓存
+# 这样可以最大化利用Docker的缓存机制，只要文件有变化copy..就不会利用缓存
+#只要有一行不利用缓存，接下来的就都不会利用缓存，
+#避免每次代码变动都
+COPY . . 
+
 # 例如，启动您的WebSocket服务器
 CMD ["/start.sh"]
