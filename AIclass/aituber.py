@@ -1,4 +1,3 @@
-
 import chromadb
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
@@ -9,6 +8,7 @@ from llama_index.core import PromptTemplate
 import threading
 import queue
 import time
+import asyncio
 
 from AIclass.main_engine import MainEngine
 from events_class.commands import Command
@@ -19,15 +19,16 @@ from events_class.system_events import TextChunkEvent
 # AItueber类
 
 class AItuber:
-    def __init__( self,
-            main_engine: MainEngine,
-            system_event_queue: queue.Queue,
-            charac_name = "",
-            custom_context_str = "" ,
-            custom_condense_prompt_str = "",
-            similarity_top_num = 5,
-            short_memory_toke_limit = 4096
-                  ):
+    def __init__(
+        self, 
+        main_engine: MainEngine, 
+        system_event_queue: asyncio.Queue, 
+        charac_name = "",
+        custom_context_str = "" , 
+        custom_condense_prompt_str = "", 
+        similarity_top_num = 5, 
+        short_memory_toke_limit = 4096
+    ):
         # """
         # 在传参时要注意main_engine 的perception 和 decision engine的event queue应该是同一个
         # 初始化记忆系统
@@ -61,6 +62,7 @@ class AItuber:
 
         # log information
         self.system_event_queue = system_event_queue
+        self._audio_queue = asyncio.Queue()
 
         # thread
         self._is_running  = threading.Event()
@@ -69,7 +71,6 @@ class AItuber:
         #record the time and add the unplaying music to audio_queue
         self.last_audio_start_time = time.time()
         self._audio_duration = 0
-        self._audio_queue = queue.Queue()
 
         #提示模板
         custom_context_prompt = PromptTemplate(custom_context_str)
@@ -79,6 +80,8 @@ class AItuber:
 
         custom_condense_prompt = PromptTemplate(custom_condense_prompt_str)
 
+        #任务列表 play audio, execute command, handle system event
+        self.tasks = []
 
         #限制短期记忆长度
         '''MemorySystem作用的地方1/2'''
@@ -101,131 +104,108 @@ class AItuber:
         )
         print("✅ 全功能记忆系统已准备就绪 (包含短期记忆和长期记忆)。")
 
-
         # print("✅ 加载了强制中文输出模板。")
 
-
-    def memorize(self, text_to_remember):
+    async def memorize(self, text_to_remember):
         #实现记忆
-        self.memory_system.memorize(text_to_remember)
-
-    def start(self):
-        self.main_engine.start_all_services() # 全引擎启动包括了perceptionn UI的创建 再主线程里创建UI
-        # 启动子线程来运行意识循环
-        if not self.consciousness_thread or not self.consciousness_thread.is_alive():
-            self._is_running.set()
-            self.consciousness_thread = threading.Thread(
-                target=self.consciousness_loop,
-                 # 设置为守护线程，主程序退出时自动终止
-            )
-            self.consciousness_thread.start()
-            print("AI意识循环已在后台启动。")
-
-    def consciousness_loop(self):
-
-      '''
-      先启动其他引擎，
-      每一秒，接收来自decision_queue（会被decision_不断处理）的指令，分别为聊天和停止进行不同反应
-      当收到停止指令或者发生未知错误（非 空queue错误）时，结束进程（clear flag）并停止所有引擎
-      '''
-      self.system_event_queue.put(LogMessageEvent(f"开始执行意识流！！！"))
-      self._is_running.set()
-      self.main_engine.start_all_services()
-      while self._is_running.is_set():
-        # self.system_event_queue.put(LogMessageEvent("正在意识流loop中"))
-        # print("意识流正在工作")
         try:
-          # deal with different commands
-
-          self.command = self.command_queue.get_nowait()
-          self.execute_command(self.command)
-          print(f"执行了一个命令：{self.command.type}")
-          pass
-        except queue.Empty:
-          pass
+            await self.memory_system.memorize(text_to_remember)
         except Exception as e:
-          self.system_event_queue.put(LogMessageEvent(f"意识loop执行命令时发生错误：{e}"))
-          self.stop_consciousness_loop()
-          break
+            print(f"记忆时发生错误：{e}")
+
+    async def start(self):
+        '''
+        启动AItuber的意识流
+        1. 启动所有引擎
+        2. 启动意识流loop(已经弃用)
+        3. 启动处理系统事件的协程
+        4. 启动处理命令的协程
+        5. 启动播放音频的协程
+        6. 捕捉键盘中断，停止所有引擎和协  
+        '''
+        #启动全部引擎
+        await self.main_engine.start_all_services()
+        self.tasks = [
+            asyncio.create_task(self.execute_command()),
+            asyncio.create_task(self.handle_system_event()),
+            asyncio.create_task(self.play_audio_in_queue()),
+        ]
         try:
-          # deal with system_event. (play the audio, log the print() content in the thread)
-          system_event = self.system_event_queue.get_nowait()
-          self.handle_system_event(system_event)
+            await asyncio.gather(*self.tasks)
+            print("AItuber已经启动")
+        except KeyboardInterrupt:
+            print("AItuber正在手动停止中")
+            await self.stop_consciousness()
+            print("AItuber已经完全停止")
+        except asyncio.CancelledError:
+            print("AItuber的任务被取消")
+            await self.stop_consciousness()
+            print("AItuber已经完全停止")
 
-        except queue.Empty:
-          pass
-        except Exception as e:
-          print(f"意识loop在处理系统事件时发生错误：{e}")
-          self.stop_consciousness_loop()
-          break
+    async def stop_consciousness(self):
+        self._is_running.clear()
+        await self.main_engine.stop_all_services()
+        #只是把flag取消不够，还要把所有的task取消
+        for task in self.tasks:
+            task.cancel()
+        await asyncio.gather(*self.tasks, return_exceptions=True)
+        print("stop the consciousness flow")
 
-        # self.play_audio_in_queue() # abandon temporarily
-        time.sleep(1)
-
-
-    def stop_consciousness_loop(self):
-      self._is_running.clear()
-      self.main_engine.stop_all_services()
-      print("stop the consciousness flow")
-
-    def execute_command(self,command):
+    async def execute_command(self):
         '''
         you need to avoid the empty of command queue
         get the command, and exectue it according to its type
         '''
-        if command.type == "CHAT":
-          # daemon=True 意味着当主程序退出时，这个线程也会跟着退出
-          self.system_event_queue.put(LogMessageEvent(f"💬{self.charac_name}: {command.type}"))
-          print("\n begin to chat:=====================")
-          chat_thread = threading.Thread(target=self.chat, kwargs={ 'user_message': command.data,
-                                         'in_consciousness_loop': True,
-                                          'is_print' : True
-                                                        })
-          chat_thread.start()
-          # print("\n end chat")
-        elif command.type == "STOP":
-          self.stop_consciousness_loop()
-          pass
-        elif command.type == "MEMORIZE":
-          self.memorize(command.data)
-        else:
-          print(f"Unknown command type: {command.type}")
+        while True:
+            command = await self.command_queue.get()
+            print(f"\n got a command of type {command.type}")
+    
+            if command.type == "CHAT":
+                print("\n begin to chat:=====================")
+                # asyncio.create_task(self.chat(user_message=command.data, in_consciousness_loop=True, is_print=True))
+                print(f"\n模拟谈话中，用户输入是: {command.data}")
+            elif command.type == "STOP":
+                await self.stop_consciousness_loop()
+                pass
+            elif command.type == "MEMORIZE":
+                await self.memorize(command.data)
+            else:
+                print(f"未知的命令类型: {command.type}")
 
-
-    def handle_system_event(self, system_event):
+    async def handle_system_event(self):
         # print("正在处理系统事件")
         if system_event.type == "LOG_MESSAGE":
-          # print(system_event.message)
-          pass
-          '''use print here'''
+            # print(system_event.message)
+            pass
+            '''use print here'''
         elif system_event.type == "AUDIO_READY":
-          self._audio_queue.put((system_event.audio_data,system_event.duration))
-          if system_event.audio_data == None:
-            print("alert!!!!None type of audio")
-          else:
-            print(f"safe, the length of audio data is {len(system_event.audio_data)}")
+            await self._audio_queue.put((system_event.audio_data,system_event.duration))
+            print(f"audio event received, the duration is {system_event.duration}")
+            if system_event.audio_data == None:
+                print("alert!!!!None type of audio")
+            else:
+                print("模拟播放音频中") 
         elif system_event.type == "TEXT_CHUNK":
-          print(system_event.type)
-          pass
-          # print("now the system_event type is TEXT_CHUNK")
+            print(system_event.type)
+            pass
+            # print("now the system_event type is TEXT_CHUNK")
         else:
-          print(f"Unknown system event type: {system_event.type}")
+            print(f"Unknown system event type: {system_event.type}")
 
-    def play_audio_in_queue(self): # abandon temporarily
-
-      current_time = time.time()
-      # 检查上一段音频是否播放完毕
-      if (current_time - self.last_audio_start_time) >= self._audio_duration and not self._audio_queue.empty():
-        audio_data, duration = self._audio_queue.get_nowait()
-        # 在主线程中播放音频
-        print(f"\n开始播放音频,time duration: {duration}")
-        display(Audio(data=audio_data, autoplay=True))
+    async def play_audio_in_queue(self): # abandon temporarily
+        current_time = time.time()
+        # 检查上一段音频是否播放完毕
+        if (current_time - self.last_audio_start_time) >= self._audio_duration and not self._audio_queue.empty():
+            audio_data, duration = await self._audio_queue.get()
+            # 在主线程中播放音频
+            print(f"\n开始播放音频,time duration: {duration}")
+            display(Audio(data=audio_data, autoplay=True))
 
         # 更新状态变量
         self._audio_duration = duration
         self.last_audio_start_time = current_time
 
-    def chat(self, user_message: str,  in_consciousness_loop = False,is_print = False,) -> str:
+    async def chat(self, user_message: str,  in_consciousness_loop = False,is_print = False,) -> str:
         """
         进行一次有短期记忆的、流式的对话。
 
@@ -233,7 +213,6 @@ class AItuber:
         :return: AI生成的完整回答字符串。
         """
         # 打印用户的提问，方便在界面上看到
-
 
         # 调用聊天引擎的 .stream_chat() 方法来获取流式响应
         response = self.chat_engine.stream_chat(user_message)
@@ -246,8 +225,6 @@ class AItuber:
         # 遍历响应中的生成器 (generator)，逐个获取token
         # response.response_gen 是包含所有文本片段的数据流
         for token in response.response_gen:
-
-
             '''tts作用的地方1/2'''
             tts_manager.add_next_chunk(token)
             # 将token拼接到完整回答的字符串中
@@ -255,35 +232,86 @@ class AItuber:
         '''tts作用的地方2/2'''
         #只有当不在意识流时，自己测试调用的话会自动结束
         if not in_consciousness_loop:
-          tts_manager.finish_streaming()
+            tts_manager.finish_streaming()
         # 所有token接收完毕后，打印一个换行符，让界面更整洁
-        self.system_event_queue.put(LogMessageEvent(f"💬{self.charac_name}: {full_response_text}"))
+        await self.system_event_queue.put(LogMessageEvent(f"💬{self.charac_name}: {full_response_text}"))
         if is_print:
-          print(f"💬{self.charac_name}: {full_response_text}")
+            print(f"💬{self.charac_name}: {full_response_text}")
 
         #显示使用了哪些长期记忆
         if response.source_nodes:
             for i, node in enumerate(response.source_nodes):
                 print(f"  - 记忆片段 #{i+1} (相似度: {node.score:.4f}):")
                 if is_print:
-                  print(f"  - 记忆片段 #{i+1} (相似度: {node.score:.4f}): ")
+                    print(f"  - 记忆片段 #{i+1} (相似度: {node.score:.4f}): ")
 
                 # 为了显示整洁，我们将记忆内容进行清理和截断
                 content = node.get_content().strip().replace('\n', ' ')
                 if len(content) > 120:
                     content = content[:120] + "..."
 
-                self.system_event_queue.put(LogMessageEvent(f"    '{content}'"))
+                await self.system_event_queue.put(LogMessageEvent(f"    '{content}'"))
                 if is_print:
-                  print(f"    '{content}'")
+                    print(f"    '{content}'")
         else:
             print("  - 本次回答主要依赖短期记忆或通用知识，未直接引用长期记忆。")
             if is_print:
-              print("  - 本次回答主要依赖短期记忆或通用知识，未直接引用长期记忆。")
+                print("  - 本次回答主要依赖短期记忆或通用知识，未直接引用长期记忆。")
 
         print("="*50)
 
         # 返回AI的完整回答，可用于后续处理（如存入日志、语音合成等）
         return full_response_text
 
+if __name__ == "__main__":
+
+    llm = None
+    embed_model = None
+
+    import asyncio
+    from sub_engines.memory_system import MemorySystem
+    from sub_engines.perception_engine import PerceptionEngine
+    from sub_engines.decision_engine import DecisionEngine
+    from sub_engines.tts_empty import Tts_Empty
+
+    # 1. 创建异步队列
+    system_event_queue = asyncio.Queue()
+
+    # 2. 初始化各子系统并传递 system_event_queue
+    ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+    tts_manager = Tts_Empty()
+    ban_tts = False
+
+    event_queue = asyncio.Queue()
+    command_queue = asyncio.Queue()
+    perceptionEngine = PerceptionEngine(event_queue, system_event_queue=system_event_queue)
+    decisionEngine = DecisionEngine(
+        perception_event_queue=event_queue,
+        command_queue=command_queue,
+        system_event_queue=system_event_queue
+    )
+
+    main_en = MainEngine(
+        perception_engine=perceptionEngine,
+        memory_system=ai_memory,
+        decision_engine=decisionEngine,
+        tts_engine=tts_manager,
+        llm=llm,
+        embed_model=embed_model,
+        system_event_queue=system_event_queue
+    )
+
+    print("✅ Ollama和RAG组件初始化完成。")
+
+    AItuber_novoice = AItuber(charac_name = character_name,main_engine = main_en,system_event_queue= system_event_queue ,custom_context_str = custom_context_str,
+                custom_condense_prompt_str = custom_condense_prompt_str)
+    print("\n\n🎉🎉🎉  AI 系统已完全准备就绪，整装待发！🎉🎉🎉")
+
+    command_queue.put_nowait(Command("CHAT", "你好"))
+    command_queue.put_nowait(Command("CHAT", "你是谁？"))
+    command_queue.put_nowait(Command("CHAT", "你能做什么？"))
+    command_queue.put_nowait(Command("MEMORIZE", "记住这个信息"))
+    command_queue.put_nowait(Command("CHAT", "你刚才记住了什么？"))
+    command_queue.put_nowait(Command("STOP"))
+    asyncio.run(AItuber_novoice.start())
 

@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y \
 
 # 3. 安装Ollama
 # 这会把Ollama安装到容器里
-RUN curl -fsSL https://ollama.com/install.sh | sh
+COPY install_ollama.sh .
+RUN chmod +x install_ollama.sh && ./install_ollama.sh && rm install_ollama.sh
 
 # --- 【核心修改】 ---
 # 4. 【新】直接从本地项目文件夹复制预先下载好的Ollama模型
@@ -26,7 +27,10 @@ COPY ollama_models /root/.ollama/models/
 # --- 修改结束 ---
 # 你也可以在这里用Python脚本下载Whisper和GPT-SoVITS的模型
 
-
+# 确保 python3 拥有 pip 模块
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 # 5. 安装所有Python依赖
 # 先只复制requirements.txt文件，可以利用Docker的缓存机制
 COPY requirements.txt .
