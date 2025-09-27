@@ -211,7 +211,7 @@ class AItuber:
         else:
           print(f"Unknown system event type: {system_event.type}")
 
-    def play_audio_in_queue(self):
+    def play_audio_in_queue(self): # abandon temporarily
 
       current_time = time.time()
       # 检查上一段音频是否播放完毕

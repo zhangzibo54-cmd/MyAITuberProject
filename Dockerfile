@@ -19,14 +19,11 @@ RUN apt-get update && apt-get install -y \
 # 这会把Ollama安装到容器里
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
-# 4. 【重要】提前下载AI模型
-# 这一步会将模型文件直接打包进镜像，巨大地节省每次启动服务器的时间
-# 注意：这会让你的Docker镜像变得很大！
-# 启动ollama服务，拉取模型，然后关闭服务
-RUN ollama serve & sleep 5 && \
-    ollama pull llama3 && \
-    ollama pull nomic-embed-text && \
-    pkill ollama
+# --- 【核心修改】 ---
+# 4. 【新】直接从本地项目文件夹复制预先下载好的Ollama模型
+#    这将取代原来耗时的 RUN ollama pull 命令
+COPY ollama_models /root/.ollama/models/
+# --- 修改结束 ---
 # 你也可以在这里用Python脚本下载Whisper和GPT-SoVITS的模型
 
 
@@ -36,28 +33,28 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 
-RUN apt-get update && apt-get install -y openssh-server
-RUN mkdir /var/run/sshd
+# 6. 修复 SSHD 配置 (解决 PTY/TCP 转发错误)
+RUN apt-get update && apt-get install -y openssh-server && \
+    rm -rf /var/lib/apt/lists/*
 
-# 修复 SSH 公钥认证
-# 6. 创建 .ssh 目录并设置权限
-RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
-#  将你的公钥文件（id_ed25519.pub）复制到容器中
-# 假设你的公钥文件就在本地，名为 id_ed25519.pub
+    # 假设你的公钥文件就在本地，名为 id_ed25519.pub
+    #  将你的公钥文件（id_ed25519.pub）复制到容器中
 COPY id_ed25519.pub /root/.ssh/authorized_keys
-#  设置正确的权限，这是 SSHD 要求的
-RUN chmod 600 /root/.ssh/authorized_keys
+
+RUN mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    chmod 600 /root/.ssh/authorized_keys && \
+    mkdir /var/run/sshd && \
+    echo 'PermitRootLogin prohibit-password' >> /etc/ssh/sshd_config
+
+
+
 
 
 
 
 # 7. 暴露您服务器程序需要用到的端口
-EXPOSE 8888
-EXPOSE 22
-
-
-
-
+EXPOSE 8888 22
 
 
 # 8. 复制您自己的所有项目代码到容器中放在最下方目录不然会影响缓存
