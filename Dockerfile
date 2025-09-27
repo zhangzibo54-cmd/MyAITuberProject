@@ -11,38 +11,42 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     build-essential \
     cmake \
+    openssh-server \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-
-
-# 3. 安装Ollama
-# 这会把Ollama安装到容器里
+# 3. 安装Ollama (通过本地脚本，优化缓存)
 COPY install_ollama.sh .
 RUN chmod +x install_ollama.sh && ./install_ollama.sh && rm install_ollama.sh
 
-# --- 【核心修改】 ---
-# 4. 【新】直接从本地项目文件夹复制预先下载好的Ollama模型
-#    这将取代原来耗时的 RUN ollama pull 命令
+# 4. 复制预先下载好的Ollama模型 (利用缓存)
 COPY ollama_models /root/.ollama/models/
-# --- 修改结束 ---
-# 你也可以在这里用Python脚本下载Whisper和GPT-SoVITS的模型
 
-# 确保 python3 拥有 pip 模块
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    && rm -rf /var/lib/apt/lists/*
-# 5. 安装所有Python依赖
-# 先只复制requirements.txt文件，可以利用Docker的缓存机制
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --- 5. 核心：创建并安装隔离的 Python 虚拟环境 ---
 
+# 复制依赖文件
+COPY requirements_gpts.txt .
+COPY requirements_ollama.txt .
 
-# 6. 修复 SSHD 配置 (解决 PTY/TCP 转发错误)
-RUN apt-get update && apt-get install -y openssh-server && \
-    rm -rf /var/lib/apt/lists/*
+# A. 创建 GPT-SoVITS 依赖环境 (numpy < 2.0)
+RUN python3 -m venv /venv_gpts && \
+    /venv_gpts/bin/python3 -m pip install --upgrade pip && \
+    # 安装 PyTorch 及其相关库（必须从官方源安装以获取 GPU 支持）
+    /venv_gpts/bin/python3 -m pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu121 && \
+    /venv_gpts/bin/python3 -m pip install --no-cache-dir -r requirements_gpts.txt && \
+    rm requirements_gpts.txt
 
-    # 假设你的公钥文件就在本地，名为 id_ed25519.pub
-    #  将你的公钥文件（id_ed25519.pub）复制到容器中
+# B. 创建 Ollama/API 依赖环境 (pydantic 2.x, 兼容 numpy 2.x)
+RUN python3 -m venv /venv_ollama && \
+    /venv_ollama/bin/python3 -m pip install --upgrade pip && \
+    # 安装 PyTorch 及其相关库
+    /venv_ollama/bin/python3 -m pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu121 && \
+    /venv_ollama/bin/python3 -m pip install --no-cache-dir -r requirements_ollama.txt && \
+    rm requirements_ollama.txt
+
+# 6. 修复 SSHD 配置
+# 确保 id_ed25519.pub 在本地项目目录中
 COPY id_ed25519.pub /root/.ssh/authorized_keys
 
 RUN mkdir -p /root/.ssh && \
@@ -51,31 +55,15 @@ RUN mkdir -p /root/.ssh && \
     mkdir /var/run/sshd && \
     echo 'PermitRootLogin prohibit-password' >> /etc/ssh/sshd_config
 
-
-
-
-
-
-
 # 7. 暴露您服务器程序需要用到的端口
 EXPOSE 8888 22
 
-
-# 8. 复制您自己的所有项目代码到容器中放在最下方目录不然会影响缓存
-# 这样可以最大化利用Docker的缓存机制，只要文件有变化copy..就不会利用缓存
-#只要有一行不利用缓存，接下来的就都不会利用缓存，尽量把耗时的变动少的放前面
-#避免每次代码变动都
-
-# 9. 定义容器启动时默认执行的命令
-
+# 8. 复制项目代码和启动脚本
+# 注意：这行 COPY . . 已经将本地的 GPT-SoVITS 目录复制进来，无需 git clone
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
-# 10. 克隆或复制其他项目代码，如下载GPT-SoVITS
-# 如果您的GPT-SoVITS代码在本地，就用COPY。如果是从GitHub拉取，就用RUN git clone
-# RUN git clone https://github.com/RVC-Boss/GPT-SoVITS.git ./GPT-SoVITS
-# 将启动脚本复制到容器中
 
 COPY . . 
 
-# 例如，启动您的WebSocket服务器
+# 9. 定义容器启动时默认执行的命令 (启动 start.sh)
 CMD ["/start.sh"]
