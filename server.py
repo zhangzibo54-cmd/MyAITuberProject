@@ -6,14 +6,32 @@ import sys
 import logging
 from typing import Optional
 
+import asyncio
+import json
+import wave
+from io import BytesIO
+from dataclasses import dataclass, field
+from typing import List
+
+
 # 确保导入了正确的 LlamaIndex 模块
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama as OllamaLLM
 from llama_index.core.settings import Settings 
 
-# 假设您已安装 FastAPI
-from fastapi import FastAPI, HTTPException
+import asyncio
+import json
+import wave
+from io import BytesIO
+from dataclasses import dataclass, field
+from typing import List
 
+# 假设您已安装 FastAPI
+from fastapi import FastAPI,HTTPException ,WebSocket, WebSocketDisconnect
+
+
+from AIclass.events_class.utterance import UtteranceChunk 
+from AIclass.aituber import AItuber
 # ----------------------------------------------------
 # 1. 配置日志系统
 # ----------------------------------------------------
@@ -79,7 +97,7 @@ def initialize_rag_components():
 # 使用 on_startup 钩子，确保 initialize_rag_components 在服务启动前运行
 app = FastAPI(
     on_startup=[initialize_rag_components],
-    title="GPT-SoVITS & Ollama RAG Gateway"
+    title="GPT-SoVITS, Ollama RAG Gateway and send text_audio"
 ) 
 
 @app.get("/")
@@ -102,6 +120,56 @@ def query_rag_endpoint(query_text: str):
     # 🚧 待填充: 在这里调用 index.as_query_engine().query(query_text)
     
     return {"query": query_text, "response": "RAG 逻辑待实现。"}
+
+
+@app.websocket("/ws/stream_uuerances")
+async def websocket_endpoint(websocket: WebSocket, utterance_list: asyncio.Queue):
+    #完成text_audio的传输
+    await websocket.accept()
+    print("客户端已经连接")
+
+    utterance_list = asyncio.Queue()
+    # to put aituber
+    aituber = None
+
+    aituber_task =  asyncio.create_task( AItuber.main(text_audio_queue = utterance_list,aituber = aituber) )
+    await asyncio.gather(aituber_task)
+    #当utterance没有遇到截至信号时，不会
+    try:
+        while True:
+                #这里耗时上传任务仍然用await asyncio.to_thread()
+                #注意这里wait for仍然需要await
+                #长时间
+                chunk = await asyncio.wait_for(utterance_list.get(),timeout=100000)
+                metadata = chunk.to_dict()
+                
+                
+                await  websocket.send_bytes(chunk.audio_data)
+                await  websocket.send_text(json.dumps(metadata))
+
+                print(f"已发送{metadata["text"]}和文本")
+                pass
+    except KeyboardInterrupt:
+        print("因为输入CTRL + C而终止了server.py")
+    except  Exception as e:
+        print(f"服务器传输数据给本地时发生错误：{e}")
+    finally:
+        aituber.stop_consciousness()
+        aituber_task.cancel()
+        try:
+            await aituber_task
+        except asyncio.CancelledError:
+            logger.info(f"✅ 为客户端创建的 AItuber 后台任务已成功清理。")
+
+        logger.info(f"客户端的会话已完全结束。")
+
+
+if __name__ =="__main__":
+    import uvicorn
+    # 运行服务器，监听所有网络接口(所有人都能请求)的 8000（访问地址porthttp://<服务器IP>:8000） 端口  
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+  
+
 
 
 # ----------------------------------------------------

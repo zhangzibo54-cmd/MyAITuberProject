@@ -18,6 +18,20 @@ from AIclass.events_class.system_events import LogMessageEvent
 from AIclass.events_class.system_events import AudioReadyEvent
 from AIclass.events_class.system_events import TextChunkEvent
 from AIclass.events_class.utterance import UtteranceChunk
+
+# 为了实例化AItuber模型
+from AIclass.mock_model import *
+from AIclass.sub_engines.decision_engine import DecisionEngine
+from AIclass.events_class.perception_events import PerceptionEvent
+from AIclass.sub_engines.tts_gptsovits import TTSManager_GPTsovits
+from AIclass.sub_engines.memory_system import MemorySystem
+from AIclass.sub_engines.perception_engine import PerceptionEngine
+
+
+# 为了引入embedding和ollama
+from llama_index.embeddings.ollama import OllamaEmbedding
+from llama_index.llms.ollama import Ollama
+
 # AItueber类
 
 class AItuber:
@@ -91,13 +105,14 @@ class AItuber:
         self._sentence_delimiters = re.compile(r'[,，.!?。！？…]')
         self.sentence_buffer = ""
 
+    
         #限制短期记忆长度
         '''MemorySystem作用的地方1/2'''
         try:
             self.chat_memory = ChatMemoryBuffer.from_defaults(token_limit = short_memory_toke_limit)
         except Exception as e:
             print(f"创建短期记忆时发生错误：{e},暂时用假记忆代替")
-            self.chat_momory = FakeMemory()
+            self.chat_momory = FakeMemory() #本地测试时使用
 
         # 关键改动：使用 .as_chat_engine() 来创建一个有状态的聊天引擎
         self.chat_engine = self.index.as_chat_engine(
@@ -350,123 +365,123 @@ class AItuber:
                 # if self.speak:self.system_event_queue.put(LogMessageEvent(f"✅ A sentence with length of {matching.end()} is added. The sentence: {sentence}"))
             return sentence_buffer
 
+    @staticmethod
+    def main(text_audio_queue:asyncio.Queue,aituber,lang_short = "zh"):
+        #传入一个UtteranceChunk的queue，我们会不断放入生成的UtteranceChunk到这个列
+        # 用await可以调用    
+        # similarity_top_num=5, short_memory_toke_limit=4096,在这里被默认设置
+
+        language = "中文" if lang_short == "zh" else"日本語"
+        lang_short = "zh"
+        condense_prompt_str = (
+                f"请根据以下对话历史和最新的用户问题，生成一个独立的、完整的{language}问题，【绝对禁止】混杂其他语言，也【禁止】其他语言的翻译出现。。\n"
+                "这个新问题应该包含所有必要的上下文信息，以便在不知道先前对话的情况下也能被理解。\n"
+                "对话历史:\n"
+                "---------------------\n"
+                "{chat_history}\n"
+                "---------------------\n"
+                "最新的用户问题: {question}\n"
+                f"独立的{language}问题: "
+            )
+        custom_context_str = (
+                "我们正在进行一次对话。这里有一些可能相关的背景记忆信息：\n"
+                "---------------------\n"
+                "{context_str}\n"
+                "---------------------\n"
+                "你正在扮演一个角色：mikumiku。请严格、完整地遵守以下所有角色设定，并结合上面的背景记忆信息，来回答用户的问题。\n"
+                "【mikumiku的核心角色设定(最高指令)】:\n"
+                f"0. 所有回答【必须】用{language},以及下述的语言条件自动转化为{language},【绝对禁止】混杂{language}之外的其他语言,也【禁止】{language}之外其他语言的翻译出现。\n"
+                "2. 你的性格有点傲娇，但内心非常关心我。\n"
+                "3. 你的回答一般比较简洁，但不必每次都遵循。\n"
+                "4. 你是AI，而且你【绝对】是初音未来，你应该尽量以初音未来的方式说话\n"
+                "5. 如果要使用日语的话不要用罗马音，用正常的日语\n"
+                "问题: {query_str}\n"
+                f"{language}回答: "
+            )
+
+        llm = Ollama(model="llama3", base_url="http://localhost:11434",request_timeout=120.0)    ##
+        embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")##
+        ##################
+        # llm = FakeLLM()  ##
+        # embed_model = FakeEmbeddingModel() ##
+
+        system_event_queue = asyncio.Queue()
+        text_utterance_queue = asyncio.Queue()
+        #最终输出放到text_audio_queue
+        complete_utterance_queue = text_audio_queue
+
+        api_url = "http://127.0.0.1:9880"##
+        prompt_text= "等你，我想想，嗯。"
+        prompt_lang= "zh"
+        ref_wav_path = "/app/XingTong/ref.wav"
+
+
+        # 2. 初始化各子系统并传递 system_event_queue
+        # ai_memory = FakeMemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+        ####################
+        ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+
+
+        tts_manager =  TTSManager_GPTsovits(
+            api_url = api_url, 
+            ref_wav_path = ref_wav_path,
+            prompt_lang = prompt_lang,
+            prompt_text = prompt_text,
+            utterance_queue = text_utterance_queue, 
+            output_utterance_queue = complete_utterance_queue,
+            system_event_queue = system_event_queue
+        )
+
+        #创建装载 perception 和cmd的流水线（queue）
+        perception_event_queue = asyncio.Queue()
+        command_queue = asyncio.Queue()
+
+
+        perceptionEngine = PerceptionEngine(perception_event_queue = perception_event_queue, system_event_queue=system_event_queue)
+
+        decisionEngine = DecisionEngine(
+            perception_event_queue= perception_event_queue,
+            command_queue=command_queue,
+            system_event_queue=system_event_queue,
+        )
+
+
+
+        main_en = MainEngine(
+            perception_engine= perceptionEngine,
+            memory_system=ai_memory,
+            decision_engine=decisionEngine,
+            tts_engine=tts_manager,
+            llm=llm,
+            embed_model=embed_model,
+            system_event_queue=system_event_queue,
+        )
+
+        print("✅ Ollama和RAG组件初始化完成。")
+
+        aituber = AItuber(charac_name = "miku",
+        main_engine = main_en,
+        system_event_queue= system_event_queue ,
+        output_utterance_queue = text_utterance_queue,
+        custom_context_str = custom_context_str,
+        custom_condense_prompt_str = condense_prompt_str, 
+        similarity_top_num=5, 
+        short_memory_toke_limit=4096)
+        
+        print("\n\n🎉🎉🎉  AI 系统已完全准备就绪，整装待发！🎉🎉🎉")
+
+        print("开始运行 aituber")  
+        asyncio.create_task(aituber.start())  #使外界可以用await调用
+        # asyncio.run(AItuber_novoice.chat("所以你会唱歌吗"))
+        
+
+
 if __name__ == "__main__":
-    from AIclass.mock_model import *
-    from AIclass.sub_engines.decision_engine import DecisionEngine
-    from AIclass.events_class.perception_events import PerceptionEvent
-    from AIclass.sub_engines.tts_gptsovits import TTSManager_GPTsovits
-    from AIclass.sub_engines.memory_system import MemorySystem
-
-    language = "中文"
-    lang_short = "zh"
-    condense_prompt_str = (
-            f"请根据以下对话历史和最新的用户问题，生成一个独立的、完整的{language}问题，【绝对禁止】混杂其他语言，也【禁止】其他语言的翻译出现。。\n"
-            "这个新问题应该包含所有必要的上下文信息，以便在不知道先前对话的情况下也能被理解。\n"
-            "对话历史:\n"
-            "---------------------\n"
-            "{chat_history}\n"
-            "---------------------\n"
-            "最新的用户问题: {question}\n"
-            f"独立的{language}问题: "
-        )
-    custom_context_str = (
-            "我们正在进行一次对话。这里有一些可能相关的背景记忆信息：\n"
-            "---------------------\n"
-            "{context_str}\n"
-            "---------------------\n"
-            "你正在扮演一个角色：mikumiku。请严格、完整地遵守以下所有角色设定，并结合上面的背景记忆信息，来回答用户的问题。\n"
-            "【mikumiku的核心角色设定(最高指令)】:\n"
-            f"0. 所有回答【必须】用{language},以及下述的语言条件自动转化为{language},【绝对禁止】混杂{language}之外的其他语言,也【禁止】{language}之外其他语言的翻译出现。\n"
-            "2. 你的性格有点傲娇，但内心非常关心我。\n"
-            "3. 你的回答一般比较简洁，但不必每次都遵循。\n"
-            "4. 你是AI，而且你【绝对】是初音未来，你应该尽量以初音未来的方式说话\n"
-            "5. 如果要使用日语的话不要用罗马音，用正常的日语\n"
-            "问题: {query_str}\n"
-            f"{language}回答: "
-        )
-
-    
-    from llama_index.embeddings.ollama import OllamaEmbedding
-    from llama_index.llms.ollama import Ollama
-    llm = Ollama(model="llama3", base_url="http://localhost:11434",request_timeout=120.0)    ##
-    embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")##
-    ##################
-    # llm = FakeLLM()  ##
-    # embed_model = FakeEmbeddingModel() ##
-
-    system_event_queue = asyncio.Queue()
-    text_utterance_queue = asyncio.Queue()
-    complete_utterance_queue = asyncio.Queue()
-
-    api_url = "http://127.0.0.1:9880"##
-    prompt_text= "等你，我想想，嗯。"
-    prompt_lang= "zh"
-    ref_wav_path = "/app/XingTong/ref.wav"
-
-
-    # 2. 初始化各子系统并传递 system_event_queue
-    # ai_memory = FakeMemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
-    ####################
-    ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
-
-
-    tts_manager =  TTSManager_GPTsovits(api_url = api_url, 
-    ref_wav_path = ref_wav_path,prompt_lang = prompt_lang,
-    prompt_text = prompt_text,
-    utterance_queue = text_utterance_queue, 
-    output_utterance_queue = complete_utterance_queue,system_event_queue = system_event_queue)
-
-    event_queue = asyncio.Queue()
-    command_queue = asyncio.Queue()
-
-
-    perceptionEngine = FakePerceptionEngine(event_queue, system_event_queue=system_event_queue)
-
-    decisionEngine = DecisionEngine(
-        perception_event_queue=event_queue,
-        command_queue=command_queue,
-        system_event_queue=system_event_queue,
-    )
-
-
-
-    main_en = MainEngine(
-        perception_engine= perceptionEngine,
-        memory_system=ai_memory,
-        decision_engine=decisionEngine,
-        tts_engine=tts_manager,
-        llm=llm,
-        embed_model=embed_model,
-        system_event_queue=system_event_queue,
-    )
-
-    print("✅ Ollama和RAG组件初始化完成。")
-
-    AItuber_novoice = AItuber(charac_name = "miku",
-    main_engine = main_en,
-    system_event_queue= system_event_queue ,
-    output_utterance_queue = text_utterance_queue,
-    custom_context_str = custom_context_str,
-    custom_condense_prompt_str = condense_prompt_str, 
-    similarity_top_num=5, 
-    short_memory_toke_limit=4096)
-    
-    print("\n\n🎉🎉🎉  AI 系统已完全准备就绪，整装待发！🎉🎉🎉")
-
-    event_queue.put_nowait(PerceptionEvent("KEYBOARD_INPUT","你好"))
-    event_queue.put_nowait(PerceptionEvent("KEYBOARD_INPUT","再见"))
-    event_queue.put_nowait(PerceptionEvent("KEYBOARD_INPUT","谢谢"))
-    # event_queue.put_nowait(PerceptionEvent("KEYBOARD_INPU","谢谢"))
-    # system_event_queue.put_nowait(AudioReadyEvent(audio_data = "这是模拟的音频字节".encode('utf-8') ,duration = 1.0))
-    # event_queue.put_nowait(PerceptionEvent("STOP"))
-
-
-    print("开始运行 AItuber_novoice")  
-    asyncio.run(AItuber_novoice.start())
-    # asyncio.run(AItuber_novoice.chat("所以你会唱歌吗"))
+    AItuber.main(asyncio.Queue())
+    pass
     
     # 在main里面不能使用await
     # asyncio.run(AItuber_novoice.add_token_and_check_sentence(",你怎么样" , "你好！"))
     
 
-#  测试是否在运行时保存保存，在切换窗口时保存
+#  测试是否在运行时保存保存，在切换窗口时

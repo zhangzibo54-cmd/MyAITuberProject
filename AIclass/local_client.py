@@ -1,117 +1,102 @@
-# local_client.py (本地客户端)
-import asyncio
+import websocket
 import json
-import base64
-import numpy as np
-import sounddevice as sd
-from aiohttp import ClientSession
-from AIclass.events_class.utterance import UtteranceChunk
+import pygame
+import io
+import sys
+# --- 配置 ---
+# 将 "localhost" 替换为你的服务器的 IP 地址或域名
 
-# 服务器地址
-SERVER_URL = "http://localhost:8080/api/generate_utterance"
-SAMPLE_RATE = 32000 # 假设音频采样率和服务器端一致
+#####📕#####
+SERVER_URL = "ws://194.68.245.179:8000/ws/stream_utterances"
+#####📕#####
 
-# --- 辅助函数：反序列化 ---
-def serializable_to_chunk(data: dict) -> UtteranceChunk:
-    """将字典反序列化为 UtteranceChunk 对象。"""
-    audio_data_b64 = data.get("audio_data_b64")
-    # 将 base64 字符串解码回 bytes
-    audio_data = base64.b64decode(audio_data_b64) if audio_data_b64 else b''
-    
-    return UtteranceChunk(
-        text=data["text"],
-        id=data["id"],
-        audio_data=audio_data
-    )
-
-# --- 异步播放函数 ---
-async def play_audio_chunk(chunk: UtteranceChunk):
-    """
-    异步播放单个 UtteranceChunk 的音频数据。
-    使用 sounddevice 的非阻塞流播放。
-    """
-    print(f"本地: 正在播放片段: '{chunk.text}' (ID: {chunk.id[:4]}...)")
-    if not chunk.audio_data:
-        print("本地: 无音频数据，跳过播放。")
-        return
-
-    # 将 bytes 转换为 numpy 数组 (sounddevice 需要 numpy 格式)
-    # 假设是 int16 格式 (16bit)
-    audio_array = np.frombuffer(chunk.audio_data, dtype=np.int16)
-
-    # 创建一个 Future，当播放完成时设置它
-    done_future = asyncio.Future()
-    
-    def callback(outdata, frames, time, status):
-        """sounddevice 播放完成后的回调函数。"""
-        if status:
-            print(status)
-        if frames == 0:
-            # 播放流结束
-            if not done_future.done():
-                done_future.set_result(True)
-
-    # 使用 sd.RawOutputStream 播放，并在播放完成后设置 Future
-    # blocksize=0 表示不阻塞，由 sounddevice 内部处理缓冲区
-    stream = sd.RawOutputStream(
-        samplerate=SAMPLE_RATE,
-        channels=1, # 单声道
-        dtype='int16',
-        callback=callback,
-        finished_callback=lambda: done_future.set_result(True)
-    )
-
-    with stream:
-        # 写入数据并等待播放完成
-        stream.write(chunk.audio_data) # 写入全部数据
-        await done_future # 等待播放流结束
-        
-    print(f"本地: 片段播放完成: '{chunk.text[:5]}...'")
-
-
-# --- 主控制协程 ---
-async def main_playback_pipeline():
-    """
-    整个传输和播放流程的主协程。
-    """
-    print("本地: 启动 UtteranceChunk 传输与播放流程...")
-    
-    # 1. 异步获取数据
-    async with ClientSession() as session:
-        try:
-            print("本地: 正在从服务器拉取数据...")
-            async with session.get(SERVER_URL) as response:
-                if response.status != 200:
-                    print(f"本地: 错误：服务器返回状态码 {response.status}")
-                    return
-
-                raw_data = await response.json()
-                print("本地: 数据拉取成功。")
-
-        except Exception as e:
-            print(f"本地: 网络请求失败: {e}")
-            return
-
-    # 2. 反序列化数据
+def play_audio_from_bytes(audio_bytes: bytes):
+    """使用 pygame 从内存中的字节数据播放音频。"""
     try:
-        chunks: list[UtteranceChunk] = [serializable_to_chunk(d) for d in raw_data]
-    except Exception as e:
-        print(f"本地: 数据反序列化失败: {e}")
-        return
-
-    # 3. 顺序播放
-    print(f"本地: 共收到 {len(chunks)} 个 UtteranceChunk。开始顺序播放...")
-    for chunk in chunks:
-        # await 确保一个 chunk 播放完毕后才开始下一个 chunk
-        await play_audio_chunk(chunk)
+        # Pygame 的 mixer 可以从类文件对象 (file-like object) 中加载声音
+        audio_stream = io.BytesIO(audio_bytes)
+        sound = pygame.mixer.Sound(audio_stream)
+        sound.play()
         
-    print("本地: 所有 UtteranceChunk 播放完毕。")
+        # 等待音频播放完毕
+        # get_busy() 检查是否有任何音频正在播放
+        while pygame.mixer.get_busy():
+            pygame.time.Clock().tick(10)
+    except pygame.error as e:
+        print(f"播放音频时出错: {e}")
+        print("请确认音频数据是有效的 WAV 格式。")
 
+def run_client():
+    """连接到 WebSocket 服务器并处理传入的音频流。"""
+    # 初始化 Pygame Mixer
+    pygame.mixer.init(frequency=24000) # 使用与服务器端相同的采样率
+
+    # 创建一个 WebSocket 连接
+    ws = websocket.WebSocketApp(SERVER_URL,
+                              on_open=on_open,
+                              on_message=on_message,
+                              on_error=on_error,
+                              on_close=on_close)
+    
+    print("正在连接到服务器...")
+    try:
+        # 启动 WebSocket 的永久运行循环
+        ws.run_forever()
+    except KeyboardInterrupt:
+        # 当用户按下 Ctrl+C 时，会触发这个异常
+        print("\n捕获到退出信号 (Ctrl+C)... 正在优雅地关闭...")
+        
+        # 1. 首先，关闭 WebSocket 连接
+        #    这会触发 on_close 回调函数
+        ws.close()
+        
+        # 2. 然后，退出 pygame 子系统
+        pygame.quit()
+        
+        # 3. 最后，退出程序
+        print("客户端已退出。")
+        sys.exit(0)
+
+def on_open(ws):
+    print("已成功连接到服务器！等待接收音频流...")
+
+def on_error(ws, error):
+    if isinstance(error, websocket.WebSocketConnectionClosedException):
+        pass
+    else:
+        print(f"发生错误: {error}")
+
+def on_close(ws, close_status_code, close_msg):
+    print("### 连接已关闭 ###")
+
+def on_message(ws, message):
+    """
+    处理收到的消息。
+    它会区分 JSON 元数据和二进制音频数据。
+    """
+    global expected_audio
+    
+    if isinstance(message, str):
+        # 这是一个 JSON 文本消息 (元数据)
+        data = json.loads(message)
+        
+        # 检查是否是流结束的信号
+        if data.get("id") == "DONE":
+            print("\n--- 音频流接收完毕 ---")
+            ws.close()
+            return
+            
+        print(f"\n正在接收: ID - {data['id']}, 文本 - '{data['text']}'")
+        # 设置一个标志，表明下一条消息应该是音频数据
+        expected_audio = True
+        
+    elif isinstance(message, bytes):
+        # 这是一个二进制消息 (音频数据)
+        print("收到音频数据，正在播放...")
+        play_audio_from_bytes(message)
+        # 重置标志
+        expected_audio = False
 
 if __name__ == "__main__":
-    # 记得先启动 remote_server.py
-    print("请确保 remote_server.py 正在运行在 http://localhost:8080")
-    try:
-        asyncio.run(main_playback_pipeline())
-    except KeyboardInterrupt:
-        print("本地: 流程中断。")
+    expected_audio = False
+    run_client()

@@ -18,6 +18,10 @@ class UtteranceChunk:
     id: str = field(default_factory=generate_chunk_id)
     audio_data: bytes = None # 音频数据在TTS生成后才会被填充
 
+    def to_dict(self):
+        #用于将数据转化为字典
+        return {"id":self.id, "text":self.text}
+
 if __name__ == "__main__":
     utterance1 = UtteranceChunk("a")
     utterance2 = UtteranceChunk("a")

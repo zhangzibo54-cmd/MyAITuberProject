@@ -137,7 +137,7 @@ if [ "$IS_REMOTE_SERVER" = "true" ]; then
 
     source ${VENV_OLLAMA}/bin/activate
     echo "🚀 启动主程序 server.py (LLM/API 逻辑)..."
-    ${VENV_OLLAMA}/bin/uvicorn server:app --host 0.0.0.0 --port 8888 &
+    ${VENV_OLLAMA}/bin/uvicorn server:app --host 0.0.0.0 --port 8000 &
     deactivate
     echo "✅ Ollama 服务和模型和server.py的执行已准备完毕."
 else
