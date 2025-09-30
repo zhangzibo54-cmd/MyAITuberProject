@@ -1,4 +1,7 @@
 # /content/drive/MyDrive/MyAITuberProject/system_events.py
+TYPE_LOG_MESSAGE = "LOG_MESSAGE"
+TYPE_AUDIO_READY = "AUDIO_READY"
+TYPE_TEXT_CHUNK =  "TEXT_CHUNK"
 
 class SystemEvent:
     """
@@ -32,4 +35,5 @@ class AudioReadyEvent(SystemEvent):
         super().__init__("AUDIO_READY")
         self.audio_data = audio_data
         self.duration = duration
+        
 

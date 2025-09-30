@@ -1,24 +1,27 @@
-
 # ---------------------------------------------------------------------------
 #  ipywidgets 版本的 PerceptionEngine
 # ---------------------------------------------------------------------------
+
 import threading
 import queue
-import ipywidgets as widgets
-from IPython.display import display as ipy_display, clear_output
+import asyncio
 
-from events_class.perception_events import PerceptionEvent
-from events_class.system_events import LogMessageEvent
+from AIclass.events_class.perception_events import PerceptionEvent
+from AIclass.events_class.system_events import LogMessageEvent
 
 # ---------------------------------------------------------------------------
 #  V2 版本: 解决了UI重复和输出冲突的问题
 # ---------------------------------------------------------------------------
 class PerceptionEngine:
-    def __init__(self, perception_event_queue: queue.Queue , system_event_queue: queue.Queue):
-        return None
-    def start(self):
-        return None
+    def __init__(self, perception_event_queue: asyncio.Queue, system_event_queue: asyncio.Queue):
+        self.perception_event_queue = perception_event_queue
+        self.system_event_queue = system_event_queue
 
-    def stop(self):
-        return None
+    async def start(self):
+        # 启动感知引擎的异步逻辑
+        await print("PerceptionEngine 已启动")
+
+    async def stop(self):
+        # 停止感知引擎的异步逻辑
+        await print("PerceptionEngine 已停止")
 

@@ -1,3 +1,5 @@
+TYPE_KEYBOARD_INPUT = "KEYBOARD_INPUT"
+TYPE_STOP = "STOP"
 class PerceptionEvent:
     def __init__(self, event_type: str, data: any = None):
         self.type = event_type  # 行为类型，例如 "CHAT" 或 "STOP"
