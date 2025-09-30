@@ -203,8 +203,9 @@ class AItuber:
     
             if command.type == "CHAT":
                 print("\n begin to chat:=====================")
-
-                await self.chat(user_message=command.data)
+                print("这是没有使fake responce生成的模拟回复")
+                # await self.chat(user_message=command.data)
+                await self.output_utterance_queue.put(UtteranceChunk("不要回答不要回答"))
                 # await asyncio.to_thread(self.sleeping) #这里和平时的线程一样不要加括号
                 #注意这里线程to_thread外包出去的只能时普通函数，协程函数不行
                 # print(f"\nAI：模拟谈话中，用户输入是: {command.data}")
@@ -400,9 +401,9 @@ if __name__ == "__main__":
 
 
     # 2. 初始化各子系统并传递 system_event_queue
-    # ai_memory = FakeMemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+    ai_memory = FakeMemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
     ####################
-    ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+    # ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
 
 
     tts_manager =  TTSManager_GPTsovits(api_url = api_url, 

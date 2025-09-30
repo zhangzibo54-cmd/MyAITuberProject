@@ -92,15 +92,23 @@ class TTSManager_GPTsovits:
     if self._working_audio_task is None or not self._working_audio_task.done():
       self._is_running.set()
       self._working_audio_task =  asyncio.create_task(self._tts())
+      # while self._is_running.is_set():
+      #     await asyncio.sleep(1)
+      #     print(f"待处理文本queue长度{self.utterance_queue.qsize()}")  
+      #当我们引入这一段时会阻塞任何还ａｗａｉｔ　gather之后的操作　别忘了我们使用await启动的start
+      #在实际考虑中我们可以把await看作一个把后面的整个函数连同整个await拿过来的操作
+      #而creat_task看作单开一个线程
+
 
     if self.speak:
       print(f"\n tts started.")
 
   async def _tts(self):
-    if self.speak: print("\n start the _tts func")
+    if self.speak: print("\n 开启了 _tts ")
     while self._is_running.is_set():
+      # print("进入了tts的循环")
       try:
-        self.current_utterance = await self.utterance_queue.get() #
+        self.current_utterance = await asyncio.wait_for(self.utterance_queue.get(), timeout=2) #
         sentence = self.current_utterance.text
         print(f"utterance queue长度：{self.utterance_queue.qsize()}")
         if self.speak: print(f"✅tts get the sentence:{sentence}")
@@ -147,18 +155,18 @@ class TTSManager_GPTsovits:
 
         else:
           if self.speak:print("\n ❌请求服务器tts失败")
+      except asyncio.TimeoutError:
+                print(f"2秒内perception_event_queue没有接收到事件,text utterance queue长度{self.utterance_queue.qsize()}")
+                pass
       except Exception as e:
         # to avoid other errors to destroy the thread
         if self.speak:print(f"❌tts has an error:{e}")
-        break
+        
 
   async def stop(self):
     # stop two threads
     if self._is_running.is_set():
         self._is_running.clear()
-        if self._working_audio_task:
-            self._working_audio_task.cancel()
-            self._working_audio_task = None
         print(f"停止tts,还有{utterance_queue.qsize()}个未处理")
         # self.system_event_queue.put(LogMessageEvent("\n stop the tts engine"))
 

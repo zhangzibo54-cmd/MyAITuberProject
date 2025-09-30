@@ -43,8 +43,8 @@ if [ ! -d "${VENV_GPTS}" ]; then
     python3 -m venv ${VENV_GPTS}
     ${VENV_GPTS}/bin/python3 -m pip install --upgrade pip
     # 从 PyTorch 官方源在线安装，指定 CUDA 12.1 版本
-    ${VENV_GPTS}/bin/python3 -m pip install torch==2.1.0 torchvision==0.17.2 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu121
-    # 继续安装其他依赖
+    # 【修改点】去掉版本号，让 pip 自动选择兼容版本
+    ${VENV_GPTS}/bin/python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
     ${VENV_GPTS}/bin/python3 -m pip install --no-cache-dir -r requirements_gpts.txt
 fi
 
@@ -53,7 +53,8 @@ if [ ! -d "${VENV_OLLAMA}" ]; then
     python3 -m venv ${VENV_OLLAMA}
     ${VENV_OLLAMA}/bin/python3 -m pip install --upgrade pip
     # 从 PyTorch 官方源在线安装，指定 CUDA 12.1 版本
-    ${VENV_GPTS}/bin/python3 -m pip install torch==2.1.0 torchvision==0.17.2 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu121
+    # 【修改点】去掉版本号，让 pip 自动选择兼容版本
+    ${VENV_GPTS}/bin/python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
     # 继续安装其他依赖
     ${VENV_OLLAMA}/bin/python3 -m pip install --no-cache-dir -r requirements_ollama.txt
 fi
@@ -102,8 +103,10 @@ if [ "$IS_REMOTE_SERVER" = "true" ]; then
     echo "🚀 2/3: 启动 Ollama 服务和 LLM 模型..."
 
     # ✅ 新增：强制 Ollama 使用 GPU
-    export LD_LIBRARY_PATH="/usr/local/nvidia/lib64:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib/x86_64-linux-gnu:${PYTHONPATH}:${LD_LIBRARY_PATH}"
-    /usr/local/bin/ollama serve & 
+    # 【关键修正】使用 find 命令找到的精确路径来设置环境变量，
+    # 之前的路径不对这个我们通过查找 find / -name "libcublas.so*" 2>/dev/null找到的
+    export LD_LIBRARY_PATH="/usr/local/cuda-12.1/targets/x86_64-linux/lib:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}"
+    
     echo "⏱️ 等待 Ollama 服务启动..."
     sleep 20
 
@@ -124,7 +127,7 @@ if [ "$IS_REMOTE_SERVER" = "true" ]; then
 
     source ${VENV_OLLAMA}/bin/activate
     echo "🚀 启动主程序 server.py (LLM/API 逻辑)..."
-    ${VENV_OLLAMA}/bin/python3 /app/server.py &
+    ${VENV_OLLAMA}/bin/uvicorn server:app --host 0.0.0.0 --port 8888 &
     deactivate
     echo "✅ Ollama 服务和模型和server.py的执行已准备完毕."
 else
