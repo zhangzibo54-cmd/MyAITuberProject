@@ -35,7 +35,7 @@ class DecisionEngine:
         if command:
             print(f"map to cmd:生成的cmd类型为:{command.type}")
         else:
-            print(f"未知的perception类型:{perception.type}")
+            print(f"未知的perception类型:{perception_event.type}")
 
         return command
         

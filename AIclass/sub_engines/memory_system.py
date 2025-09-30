@@ -59,8 +59,8 @@ class MemorySystem:
 
 
         index = VectorStoreIndex.from_vector_store(
-          vector_store,
-          embed_model=self.embed_model,
+            vector_store,
+            embed_model=self.embed_model,
         )
         #s书架的管理员，  storage_context,index都自动关联到同一对象，
         # 当index被调用修改时storage_。。被自动修改
@@ -78,7 +78,17 @@ class MemorySystem:
         # LlamaIndex需要将文本包装成Document对象
         document = Document(text=text_to_remember)
         self.index.insert(document)
-        await self.system_event_queue.put(LogMessageEvent(f"🧠 新记忆已存入: '{text_to_remember}'"))
+        print(f"🧠 新记忆已存入: '{text_to_remember}'")
+
+if __name__ == "__main__":
+    from llama_index.embeddings.ollama import OllamaEmbedding
+    from llama_index.llms.ollama import Ollama
+    
+    embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")##
+    system_event_queue = asyncio.Queue()
+    ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+    asyncio.run(ai_memory.memorize("初音未来又叫miku，是日本著名的虚拟歌姬"))
+    
 
 
 

@@ -202,13 +202,15 @@ class AItuber:
             print(f"\n AI got a command of type {command.type}")
     
             if command.type == "CHAT":
-                print("\n begin to chat:=====================")
-                print("这是没有使fake responce生成的模拟回复")
-                # await self.chat(user_message=command.data)
-                await self.output_utterance_queue.put(UtteranceChunk("不要回答不要回答"))
+                print("\n begin to chat:=============================")
+                print(f"你的输入text是：{command.data}")
+
+                # print("这是没有使fake responce生成的模拟回复")
+                await self.chat(user_message=command.data)
+                # await self.output_utterance_queue.put(UtteranceChunk("不要回答不要回答"))
                 # await asyncio.to_thread(self.sleeping) #这里和平时的线程一样不要加括号
                 #注意这里线程to_thread外包出去的只能时普通函数，协程函数不行
-                # print(f"\nAI：模拟谈话中，用户输入是: {command.data}")
+                print(f"✅✅完成了一次对话\n")
             elif command.type == "STOP":
                 self._to_stop.set()
                 print("收到停止命令，正在关闭系统...")
@@ -286,7 +288,7 @@ class AItuber:
         # 遍历响应中的生成器 (generator)，逐个获取token
         # response.response_gen 是包含所有文本片段的数据流
         #因为是阻塞generator所以用等待（下一个）方法
-        while True:
+        while True: 
             try:
                 token = await run_sync(next,response_stream)
                 # push the sentence into the utterance_queue
@@ -294,6 +296,7 @@ class AItuber:
                     sentence_buffer = sentence_buffer)
                 # 将token拼接到完整回答的字符串中
                 full_response_text += token
+                # print(f"token is{token}")
             except StopIteration:
                 print("LLM完成一次流式输出")
                 break
@@ -327,7 +330,8 @@ class AItuber:
             print("  - 本次回答主要依赖短期记忆或通用知识，未直接引用长期记忆。")
             
         print("="*50)
-
+        
+        
         # 返回AI的完整回答，可用于后续处理（如存入日志、语音合成等）
         return full_response_text
 
@@ -376,19 +380,19 @@ if __name__ == "__main__":
             "2. 你的性格有点傲娇，但内心非常关心我。\n"
             "3. 你的回答一般比较简洁，但不必每次都遵循。\n"
             "4. 你是AI，而且你【绝对】是初音未来，你应该尽量以初音未来的方式说话\n"
-            "5. 如果使用日语的话不要用罗马音，用正常的日语\n"
+            "5. 如果要使用日语的话不要用罗马音，用正常的日语\n"
             "问题: {query_str}\n"
             f"{language}回答: "
         )
 
     
-    # from llama_index.embeddings.ollama import OllamaEmbedding
-    # from llama_index.llms.ollama import Ollama
-    # llm = Ollama(model="llama3", base_url="http://localhost:11434",request_timeout=120.0)    ##
-    # embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")##
+    from llama_index.embeddings.ollama import OllamaEmbedding
+    from llama_index.llms.ollama import Ollama
+    llm = Ollama(model="llama3", base_url="http://localhost:11434",request_timeout=120.0)    ##
+    embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")##
     ##################
-    llm = FakeLLM()  ##
-    embed_model = FakeEmbeddingModel() ##
+    # llm = FakeLLM()  ##
+    # embed_model = FakeEmbeddingModel() ##
 
     system_event_queue = asyncio.Queue()
     text_utterance_queue = asyncio.Queue()
@@ -401,9 +405,9 @@ if __name__ == "__main__":
 
 
     # 2. 初始化各子系统并传递 system_event_queue
-    ai_memory = FakeMemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+    # ai_memory = FakeMemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
     ####################
-    # ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+    ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
 
 
     tts_manager =  TTSManager_GPTsovits(api_url = api_url, 
@@ -457,11 +461,12 @@ if __name__ == "__main__":
     # event_queue.put_nowait(PerceptionEvent("STOP"))
 
 
-    print("开始运行 AItuber_novoice")
+    print("开始运行 AItuber_novoice")  
     asyncio.run(AItuber_novoice.start())
-    # asyncio.run(AItuber_novoice.chat("你好"))
+    # asyncio.run(AItuber_novoice.chat("所以你会唱歌吗"))
     
     # 在main里面不能使用await
     # asyncio.run(AItuber_novoice.add_token_and_check_sentence(",你怎么样" , "你好！"))
     
 
+#  测试是否在运行时保存保存，在切换窗口时保存
