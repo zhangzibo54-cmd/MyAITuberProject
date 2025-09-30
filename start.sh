@@ -33,8 +33,10 @@ export PYTHONPATH="/app:/app/GPT-SoVITS:/app/GPT-SoVITS/GPT_SoVITS:/app/GPT-SoVI
 echo "🚀 启动 SSH 服务..."
 /usr/sbin/sshd -D &
 
-echo "🧹 正在清理可能残留的旧服务器进程 (端口 9880)..."
+echo "🧹 正在清理可能残留的旧服务器进程..."
 fuser -k 9880/tcp || true
+fuser -k 11434/tcp || true
+fuser -k 8888/tcp || true
 sleep 1
 
 # --- 2. 核心：检查并安装 Python 虚拟环境 ---
@@ -102,13 +104,20 @@ fi
 if [ "$IS_REMOTE_SERVER" = "true" ]; then
     echo "🚀 2/3: 启动 Ollama 服务和 LLM 模型..."
 
+    echo "🔄 正在检查并安装/更新 Ollama..."
+    curl -fsSL https://ollama.com/install.sh | sh
     # ✅ 新增：强制 Ollama 使用 GPU
     # 【关键修正】使用 find 命令找到的精确路径来设置环境变量，
     # 之前的路径不对这个我们通过查找 find / -name "libcublas.so*" 2>/dev/null找到的
-    export LD_LIBRARY_PATH="/usr/local/cuda-12.1/targets/x86_64-linux/lib:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}"
-    
+    # 【最终修正版】根据系统真实文件结构定制的路径，
+    #   实际上在采用上述安装ollama的方法后，不需要再设置这个路径了
+    # export LD_LIBRARY_PATH="/usr/local/cuda-12.1/targets/x86_64-linux/lib:/usr/local/cuda-12.1/lib64:${LD_LIBRARY_PATH}"
+
+    # 后台启动ollama服务 ---
+    /usr/local/bin/ollama serve &
+
     echo "⏱️ 等待 Ollama 服务启动..."
-    sleep 20
+    sleep 10
 
     OLLAMA_MODEL_ID="llama3:latest"
     OLLAMA_EMBED_MODEL="bge-m3:latest"
@@ -116,6 +125,7 @@ if [ "$IS_REMOTE_SERVER" = "true" ]; then
     echo "⬇️ 检查并拉取 Ollama 模型: ${OLLAMA_MODEL_ID}..."
     if ! /usr/local/bin/ollama list | grep -q "${OLLAMA_MODEL_ID}"; then
         /usr/local/bin/ollama pull "${OLLAMA_MODEL_ID}" &> /dev/null
+        /usr/local/bin/ollama run "${OLLAMA_MODEL_ID}" "hello" &> /dev/null
     fi
 
     echo "⬇️ 检查并拉取 Ollama 嵌入模型: ${OLLAMA_EMBED_MODEL}..."
