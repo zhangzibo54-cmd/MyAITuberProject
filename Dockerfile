@@ -21,22 +21,18 @@ RUN apt-get update && apt-get install -y \
 
 
 # 8. 复制项目代码和启动脚本
-# 注意：这行 COPY . . 已经将本地的 GPT-SoVITS 目录复制进来，无需 git clone
-COPY start.sh /start.sh
-# --- 5. 核心：创建并安装隔离的 Python 虚拟环境 ---
+# 以下文件全在start_configure
 # 复制依赖文件
-COPY requirements_gpts.txt .
-COPY requirements_ollama.txt .
-
-# --- 修复 GPT-SoVITS/api.py 中的模块导入问题 ---
-# 创建一个补丁脚本 patch_api.py 来修复 api.py 中的导入
 # 复制我们刚刚创建的补丁脚本
-COPY patch_api.py /app/patch_api.py
+# 创建一个补丁脚本 patch_api.py 来修复 api.py 中的导入
 
+COPY start_configure/ ./start_configure/
 
 # 6. 修复 SSHD 配置
 # 确保 id_ed25519.pub 在本地项目目录中
-COPY id_ed25519.pub /root/.ssh/authorized_keys
+COPY start_configure/id_ed25519.pub /root/.ssh/authorized_keys
+
+
 
 RUN mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh && \
@@ -49,7 +45,8 @@ RUN mkdir -p /root/.ssh && \
 COPY . . 
 
 
-RUN chmod +x /start.sh
+
+RUN chmod +x start_configure/start.sh
 # ----------------------------------------------------------------------
 # 【新增阶段】: 从官方最新镜像中获取最新的 Ollama 二进制文件
 # ----------------------------------------------------------------------
@@ -70,4 +67,4 @@ EXPOSE 8888 22 9880 11434
 # 添加 GPT-SoVITS 和 Ollama 的端口
 
 # 9. 定义容器启动时默认执行的命令 (启动 start.sh)
-CMD ["/bin/bash","/start.sh"]
+CMD ["/bin/bash","start_configure/start.sh"]

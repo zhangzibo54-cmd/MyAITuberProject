@@ -4,6 +4,7 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.ollama import Ollama
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core import PromptTemplate
+from faster_whisper import WhisperModel
 
 from anyio.to_thread import run_sync
 import threading
@@ -108,13 +109,13 @@ class AItuber:
     
         #限制短期记忆长度
         '''MemorySystem作用的地方1/2'''
-        try:
-            self.chat_memory = ChatMemoryBuffer.from_defaults(token_limit = short_memory_toke_limit)
-        except Exception as e:
-            print(f"创建短期记忆时发生错误：{e},暂时用假记忆代替")
-            self.chat_momory = FakeMemory() #本地测试时使用
+        # try:
+        self.chat_memory = ChatMemoryBuffer.from_defaults(token_limit = short_memory_toke_limit)
+        # except Exception as e:
+        #     print(f"创建短期记忆时发生错误：{e},暂时用假记忆代替")
+        #     self.chat_momory = FakeMemory() #本地测试时使用
 
-        # 关键改动：使用 .as_chat_engine() 来创建一个有状态的聊天引擎
+        #关键改动：使用 .as_chat_engine() 来创建一个有状态的聊天引擎
         self.chat_engine = self.index.as_chat_engine(
             llm = self.llm,
             memory = self.chat_memory,
@@ -129,6 +130,16 @@ class AItuber:
             condense_prompt = custom_condense_prompt
 
         )
+        # self.chat_engine =self.index.as_chat_engine(
+        #     llm=self.llm,
+        #     memory=self.chat_memory,
+        #     chat_mode="condense_plus_context",
+        #     # 关键改动：暂时移除自定义 prompt，让 LlamaIndex 使用它优化过的默认模板
+        #     # context_prompt=custom_context_prompt,  # <-- 注释掉这一行
+        #     # condense_prompt=custom_condense_prompt, # <-- 注释掉这一行
+        #     similarity_top_k=5,
+        #     verbose=True
+        # )
         print("✅ 全功能记忆系统已准备就绪 (包含短期记忆和长期记忆)。")
 
         # print("✅ 加载了强制中文输出模板。")
@@ -292,6 +303,7 @@ class AItuber:
         # 调用聊天引擎的 .stream_chat() 方法来获取流式响应
         # 使用方法，和get()等一样加上await让它能够执行，且在被破交出控制权时跳过一下代码，且to_thread让它不会阻塞，
         #注意被调用的必须是普通函数，且不加（）
+        print( f"user_message 是{type(user_message)}:{user_message}")
         response = self.chat_engine.stream_chat( user_message )     #这个流式生成本身是阻塞的
         # response = self.chat_engine.stream_chat( user_message)           #这个流式生成本身是阻塞的
         response_stream = response.response_gen
@@ -330,7 +342,8 @@ class AItuber:
             print(f"最后的一句话是：{sentence_buffer}")
         # 所有token接收完毕后，打印一个换行符，让界面更整洁
         print(f"💬{self.charac_name}: {full_response_text}")
-
+        #把谈话信息放入长期记忆中
+        self.memorize(f"历史消息：{user_message}\n 历史回复：{full_response_text}")
         #显示使用了哪些长期记忆
         if response.source_nodes:
             for i, node in enumerate(response.source_nodes):
@@ -366,13 +379,13 @@ class AItuber:
             return sentence_buffer
 
     @staticmethod
-    def main(text_audio_queue:asyncio.Queue,aituber,lang_short = "zh"):
+    async def main(text_audio_queue:asyncio.Queue, asr_model = None,lang_short = "ja"):
         #传入一个UtteranceChunk的queue，我们会不断放入生成的UtteranceChunk到这个列
         # 用await可以调用    
         # similarity_top_num=5, short_memory_toke_limit=4096,在这里被默认设置
-
+        if asr_model == None: print("❌ asr_model没有被正确传递个Aituber.main")
         language = "中文" if lang_short == "zh" else"日本語"
-        lang_short = "zh"
+        # lang_short = "zh"
         condense_prompt_str = (
                 f"请根据以下对话历史和最新的用户问题，生成一个独立的、完整的{language}问题，【绝对禁止】混杂其他语言，也【禁止】其他语言的翻译出现。。\n"
                 "这个新问题应该包含所有必要的上下文信息，以便在不知道先前对话的情况下也能被理解。\n"
@@ -401,6 +414,7 @@ class AItuber:
 
         llm = Ollama(model="llama3", base_url="http://localhost:11434",request_timeout=120.0)    ##
         embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")##
+        # model_size = "large-v3"
         ##################
         # llm = FakeLLM()  ##
         # embed_model = FakeEmbeddingModel() ##
@@ -414,8 +428,12 @@ class AItuber:
         prompt_text= "等你，我想想，嗯。"
         prompt_lang= "zh"
         ref_wav_path = "/app/XingTong/ref.wav"
+        # if  lang_short == "ja":
+        #     prompt_text = "いいんじゃない。最近、一緒に歌ってる人の声に合わせられるようになってきたし"
+        #     prompt_lang = "ja"
+        #     ref_wav_path = "/app/KusanagiNene/ref.wav"
 
-
+        
         # 2. 初始化各子系统并传递 system_event_queue
         # ai_memory = FakeMemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
         ####################
@@ -436,8 +454,12 @@ class AItuber:
         perception_event_queue = asyncio.Queue()
         command_queue = asyncio.Queue()
 
-
-        perceptionEngine = PerceptionEngine(perception_event_queue = perception_event_queue, system_event_queue=system_event_queue)
+        #here we do not need to create it, just pass parameter asr_model
+        # asr_model = WhisperModel(model_size, device="cuda", compute_type="float16")
+        perceptionEngine = PerceptionEngine(perception_event_queue = perception_event_queue, 
+                                            system_event_queue=system_event_queue,
+                                            asr_model= asr_model
+                                            )
 
         decisionEngine = DecisionEngine(
             perception_event_queue= perception_event_queue,
@@ -457,7 +479,7 @@ class AItuber:
             system_event_queue=system_event_queue,
         )
 
-        print("✅ Ollama和RAG组件初始化完成。")
+        print("✅Ollama和RAG组件初始化完成。")
 
         aituber = AItuber(charac_name = "miku",
         main_engine = main_en,
@@ -470,14 +492,16 @@ class AItuber:
         
         print("\n\n🎉🎉🎉  AI 系统已完全准备就绪，整装待发！🎉🎉🎉")
 
-        print("开始运行 aituber")  
-        asyncio.create_task(aituber.start())  #使外界可以用await调用
-        # asyncio.run(AItuber_novoice.chat("所以你会唱歌吗"))
-        
+        print("开始运行 aituber")
+        #task创建时不会被执行，只是被列进执行列表最低层，只有当下一个await时才会被执行  
+        await aituber.start()  #使外界可以用await调用
+        # await aituber.chat("所以你会唱歌吗")
 
 
 if __name__ == "__main__":
-    AItuber.main(asyncio.Queue())
+
+    aituber = None 
+    asyncio.run(AItuber.main(asyncio.Queue()))
     pass
     
     # 在main里面不能使用await

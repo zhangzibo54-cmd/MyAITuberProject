@@ -29,7 +29,7 @@ class MainEngine:
         self.system_event_queue = system_event_queue
 
     async def start_all_services(self):
-        try:
+        # try:
             await asyncio.gather(
             asyncio.create_task(self.tts_engine.start()),
             asyncio.create_task(self.perception_engine.start()),
@@ -39,8 +39,8 @@ class MainEngine:
             print("✅ 所有引擎已提交到后台运行！") 
             print(f"main_engine中的perception列长度{self.decision_engine.perception_event_queue.qsize()}")
             print("✅ 已经启动所有引擎")
-        except Exception as e:
-            print(f"启动引擎时发生错误：{e}")
+        # except Exception as e:  
+        #     print(f"启动引擎时发生错误：{e}")
 
     async def stop_all_services(self):
         try:

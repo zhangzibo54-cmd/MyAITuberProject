@@ -88,7 +88,7 @@ class TTSManager_GPTsovits:
     self.queue_empty_timeout = 100
 
 
-  async def start(self):
+  async def start(self): 
     if self._working_audio_task is None or not self._working_audio_task.done():
       self._is_running.set()
       self._working_audio_task =  asyncio.create_task(self._tts())
@@ -156,7 +156,7 @@ class TTSManager_GPTsovits:
         else:
           if self.speak:print("\n ❌请求服务器tts失败")
       except asyncio.TimeoutError:
-                print(f"2秒内perception_event_queue没有接收到事件,text utterance queue长度{self.utterance_queue.qsize()}")
+                # print(f"2秒内perception_event_queue没有接收到事件,text utterance queue长度{self.utterance_queue.qsize()}")
                 pass
       except Exception as e:
         # to avoid other errors to destroy the thread

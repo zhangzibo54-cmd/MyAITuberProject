@@ -11,7 +11,7 @@ TYPE_ANIMATION = "ANIMATION"           # AI要做的动作指令
 # ---
 # 在代码中，我们将手动创建符合这些规范的字典，然后将其序列化为JSON。
 #
-# 示例结构:
+# 示例结构:  
 #
 # {"type": "TEXT_CHUNK", "id": "uuid-123", "data": "你好呀！"}
 # {"type": "AUDIO_CHUNK", "id": "uuid-123", "data": "base64..."}

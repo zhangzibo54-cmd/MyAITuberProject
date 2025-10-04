@@ -68,7 +68,7 @@ class MemorySystem:
 
     async def memorize(self, text_to_remember):
         """
-        MemorySystem作用的地方3/3
+        MemorySystem作用的地方3/3 
 
         # 将新的文本信息存入长期记忆
         # :param text_to_remember: 需要被记住的字符串

@@ -4,11 +4,11 @@ import time
 import queue
 import asyncio
 
-from AIclass.events_class.perception_events import PerceptionEvent
+from AIclass.events_class.perception_events import PerceptionEvent,TYPE_ASR_TRANSCRIPT
 from AIclass.events_class.commands import Command
 from AIclass.events_class.system_events import LogMessageEvent
 
-
+TYPE_AUDIO_TEXT = "AUDIO_TEXT"
 class DecisionEngine:
     def __init__(self, perception_event_queue: asyncio.Queue, command_queue: asyncio.Queue, system_event_queue: asyncio.Queue ):
         self.perception_event_queue = perception_event_queue
@@ -27,7 +27,7 @@ class DecisionEngine:
 
     async def _map_event_to_command(self, perception_event: PerceptionEvent) -> Command:
         command = None
-        if perception_event.type == "KEYBOARD_INPUT":
+        if perception_event.type == "KEYBOARD_INPUT" or perception_event.type == TYPE_ASR_TRANSCRIPT:
             command = Command("CHAT", perception_event.data)
         elif perception_event.type == "STOP":
             command = Command("STOP")
