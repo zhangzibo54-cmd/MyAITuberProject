@@ -41,18 +41,6 @@ CHUNK_SIZE = 512 # 每次读取的块大小
 
 # 将 "localhost" 替换为你的服务器的 IP 地址或域名
 #####📕#####
-pod_id = "3jknn3rd4y1vdm"
-api_key = "rpa_NLCK3Y8X4SC3YVIEB769PJEWEDOG1YQV4OPIT6DL1j73xl"
-pod_details = get_runpod_pod_details(pod_id = pod_id,api_key = api_key)
-
-url_8888 = find_port_8888_url_from_api(pod_details) 
-
-SERVER_URL = "ws://194.68.245.179:22139/ws/stream_utterances"
-#####📕#####
-
-# --- 新增：用于线程同步的状态标志 ---
-# 这个事件对象将在AI播放音频时被设置 (set)，播放结束后被清除 (clear)
-is_playing_event = threading.Event()
 
 def get_runpod_pod_details(pod_id: str, api_key: str) -> dict | None:
     """
@@ -99,22 +87,51 @@ def get_runpod_pod_details(pod_id: str, api_key: str) -> dict | None:
     
     return None
 
-def find_port_8888_url_from_api(pod_details: dict) -> str | None:
-    """从 API 返回的 Pod 详情中解析出内部端口 8888 的外部 URL。"""
+def find_tcp_mapping_from_api(pod_details: dict, internal_port: int) -> tuple | None:
+    """
+    从 API 返回的 Pod 详情中，解析出某个内部TCP端口对应的【公网IP】和【公网端口】。
+
+    Args:
+        pod_details (dict): 从 get_runpod_pod_details 获取到的完整信息。
+        internal_port (int): 你要查找的容器内部端口号。
+
+    Returns:
+        tuple | None: 如果找到，返回一个包含 (公网IP, 公网端口) 的元组，例如 ("194.68.245.179", 22139)。
+                      如果找不到，返回 None。
+    """
     if not pod_details:
         return None
         
-    # API 返回的端口信息在 runtime -> ports 列表里
     ports_list = pod_details.get("runtime", {}).get("ports", [])
     
-    # 遍历列表，查找 privatePort 为 8888 的条目
     for port_info in ports_list:
-        if port_info.get("privatePort") == 8888:
-            # 找到后，返回对应的 "url" 字段
-            return port_info.get("url")
+        # 匹配内部端口号，并且确保映射类型是 tcp
+        if port_info.get("privatePort") == internal_port and port_info.get("type") == "tcp":
+            public_ip = port_info.get("ip")
+            public_port = port_info.get("publicPort")
+            return public_ip, public_port
             
-    # 如果循环结束都没找到，说明没有这个端口的映射
     return None
+
+pod_id = "3jknn3rd4y1vdm"
+
+api_key = "rpa_NLCK3Y8X4SC3YVIEB769PJEWEDOG1YQV4OPIT6DL1j73xl"
+
+
+pod_details = get_runpod_pod_details(pod_id = pod_id,api_key =  api_key)
+
+public_ip , public_port = find_tcp_mapping_from_api(pod_details,8888) 
+
+
+SERVER_URL = "ws://194.68.245.179:22139/ws/stream_utterances"
+
+server_url_path = "/ws/stream_utterances"
+SERVER_URL = f"ws://{public_ip}:{public_port}{server_url_path}"
+#####📕#####
+
+# --- 新增：用于线程同步的状态标志 ---
+# 这个事件对象将在AI播放音频时被设置 (set)，播放结束后被清除 (clear)
+is_playing_event = threading.Event()
 
 
 # --- 新的、基于 VAD 的音频处理线程 ---
