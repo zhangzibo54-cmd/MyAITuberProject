@@ -273,19 +273,7 @@ class AItuber:
             else:
                 print(f"Unknown system event type: {system_event.type}")
 
-    async def play_audio_in_queue(self): # abandon temporarily
-
-        while self._is_running.is_set(): #一直循环，检查音频队列
-            
-            # 只有在上一段音频结束且音频序列不空时后，才开始播放下一段音频
-              # 等待上一段音频结束
-            audio_data, duration = await self._audio_queue.get()
-            # 在主线程中播放音频
-            print(f"\n播放器开始播放音频,time duration: {duration}")
-            display(Audio(data=audio_data, autoplay=True))
-            await asyncio.sleep(duration)  # 模拟音频播放的时间
-            print("\n播放器音频播放结束")
-            # 更新状态变量
+    
 
     async def chat(self, user_message: str ) -> str:
         """

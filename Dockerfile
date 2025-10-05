@@ -27,12 +27,9 @@ RUN apt-get update && apt-get install -y \
 # 创建一个补丁脚本 patch_api.py 来修复 api.py 中的导入
 
 COPY start_configure/ ./start_configure/
-
 # 6. 修复 SSHD 配置
 # 确保 id_ed25519.pub 在本地项目目录中
 COPY start_configure/id_ed25519.pub /root/.ssh/authorized_keys
-
-
 
 RUN mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh && \

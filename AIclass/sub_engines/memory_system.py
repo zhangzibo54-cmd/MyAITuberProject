@@ -9,7 +9,7 @@ from AIclass.events_class.system_events import LogMessageEvent
 import asyncio
 
 class MemorySystem:
-    def __init__(self, embed_model, system_event_queue, google_drive_db_path="/app/my_ai_memory/chroma_db"):
+    def __init__(self, embed_model, system_event_queue, google_drive_db_path="/workspace/my_ai_memory/chroma_db"):
         #google_drive_db_path 时长期记忆db储存的位置
         self.db_path = google_drive_db_path
 
@@ -145,7 +145,8 @@ if __name__ == "__main__":
     system_event_queue = asyncio.Queue()
     ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
     asyncio.run(ai_memory.memorize("初音未来又叫miku，是日本著名的虚拟歌姬"))
-    asyncio.run(ai_memory.memorize("初音未来又叫miku，是日本著名的虚拟歌姬"))
+    asyncio.run(ai_memory.recall("音乐"))
+    asyncio.run(ai_memory.list_all_memories())
     
 
 

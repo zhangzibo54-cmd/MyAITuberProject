@@ -120,7 +120,7 @@ def find_tcp_mapping_from_api(pod_details: dict, internal_port: int) -> tuple | 
 # server_url_path = "/ws/stream_utterances"
 # SERVER_URL = f"ws://{public_ip}:{public_port}{server_url_path}"
 
-SERVER_URL = "ws://194.68.245.179:22042/ws/stream_utterances" # for test
+SERVER_URL = "ws://69.30.85.184:22010/ws/stream_utterances" # for test
 print(f"现在服务器地址是：{SERVER_URL}")
 #####📕#####
 

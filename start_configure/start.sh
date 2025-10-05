@@ -8,6 +8,9 @@ export MPLBACKEND='agg'
 SCRIPT_DIR=$(dirname "$0")
 REQUIREMENTS_FILE_GPTS="${SCRIPT_DIR}/requirements_gpts.txt"
 REQUIREMENTS_FILE_OLLAMA="${SCRIPT_DIR}/requirements_ollama.txt"
+
+PERSISTENT_MEMORY_PATH="/workspace/my_ai_memory"
+INITIAL_DATA_PATH="/app/my_ai_memory"
 # 确保所有 GPT-SoVITS 子模块路径被识别
 export PYTHONPATH="/app:/app/GPT-SoVITS:/app/GPT-SoVITS/GPT_SoVITS:/app/GPT-SoVITS/GPT_SOVITS/module:/app/GPT-SoVITS/GPT_SOVITS/eres2net:$PYTHONPATH"
 
@@ -26,8 +29,8 @@ DEFAULT_REF_LANG="zh"
 GPT_SOVITS_PORT=9880
 BIND_ADDRESS="0.0.0.0"
 
-VENV_GPTS="/app/venv_gpts"
-VENV_OLLAMA="/app/venv_ollama"
+VENV_GPTS="/workspace/venv_gpts"
+VENV_OLLAMA="/workspace/venv_ollama"
 
 echo "🛠️ 正在修复 GPT-SoVITS 模块导入路径 (PYTHONPATH)..."
 export PYTHONPATH="/app:/app/GPT-SoVITS:/app/GPT-SoVITS/GPT_SoVITS:/app/GPT-SoVITS/GPT_SOVITS/module:/app/GPT-SoVITS/GPT_SOVITS/eres2net:$PYTHONPATH"
@@ -41,6 +44,17 @@ fuser -k 9880/tcp || true
 fuser -k 11434/tcp || true
 fuser -k 8888/tcp || true
 sleep 1
+
+# 1.1 检查持久化目录是否已经存在。如果不存在，说明是首次启动或者持久卷被重置了。
+if [ ! -d "$PERSISTENT_MEMORY_PATH" ]; then
+  echo "首次启动，正在从镜像初始化默认记忆数据到持久卷..."
+  # 将初始数据从镜像的临时位置，复制到空的持久卷中
+  # 使用 -r 来递归复制整个目录
+  cp -r "$INITIAL_DATA_PATH" "$PERSISTENT_MEMORY_PATH"
+  echo "✅ 默认记忆数据初始化完成。"
+else
+  echo "✅ 记忆数据已存在于持久卷中，跳过初始化。"
+fi
 
 # --- 2. 核心：检查并安装 Python 虚拟环境 ---
 if [ ! -d "${VENV_GPTS}" ]; then
@@ -182,7 +196,7 @@ if [ "$IS_REMOTE_SERVER" = "true" ]; then
     deactivate
     echo "✅ Ollama 服务和模型和server.py的执行已准备完毕."
 else
-    echo "⚠️ Ollama 和 LLM/RAG API 启动跳过 (非远程环境)."
+    echo "⚠️ Ollama 和 LLM/RAG API 和server.py 启动跳过 (非远程环境)."
 fi
 
 # --- 4. 保持容器持续运行 ---
