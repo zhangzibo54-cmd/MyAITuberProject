@@ -80,6 +80,63 @@ class MemorySystem:
         self.index.insert(document)
         print(f"🧠 新记忆已存入: '{text_to_remember}'")
 
+    async def recall(self, query_text, similarity_top_k=3):
+        """
+        根据查询文本，从记忆中“回忆”最相关的信息。
+        :param query_text: 用于查询的文本。
+        :param similarity_top_k: 返回最相似结果的数量。
+        :return: 相关记忆的列表。
+        """
+        retriever = self.index.as_retriever(similarity_top_k=similarity_top_k)
+        nodes = await retriever.aretrieve(query_text)
+        
+        results = []
+        if nodes:
+            print(f"🧠 根据 '{query_text}' 回忆起以下内容:")
+            for node in nodes:
+                results.append({'id': node.node.node_id, 'text': node.node.get_content(), 'score': node.score})
+                print(f"   - [ID: {node.node.node_id}, Score: {node.score:.4f}]: {node.node.get_content()}")
+        else:
+            print(f"🧠 对于 '{query_text}'，没有找到相关记忆。")
+            
+        return results
+
+    async def list_all_memories(self):
+        """
+        【查看功能】列出数据库中所有已存储的记忆。
+        直接从ChromaDB集合中获取数据。
+        """
+        print("\n--- 📖 查看所有记忆 ---")
+        memories = self.chroma_collection.get()
+        if not memories['ids']:
+            print("   记忆库为空。")
+            return None
+            
+        for i, doc_id in enumerate(memories['ids']):
+            text = memories['documents'][i]
+            metadata = memories['metadatas'][i]
+            print(f" - ID: {doc_id}")
+            print(f"   内容: {text}")
+            print(f"   元数据: {metadata}")
+            print("-" * 10)
+        return memories  
+
+    async def forget(self, memory_id):
+        """
+        【删除功能】根据提供的ID从记忆库中删除一条记忆。
+        :param memory_id: 要删除的记忆的唯一ID (可以通过 list_all_memories 获取)。
+        """
+        try:
+            # 直接操作ChromaDB集合进行删除
+            self.chroma_collection.delete(ids=[memory_id])
+            # 注意：LlamaIndex的索引可能需要重建或更新才能完全同步状态，
+            # 但对于ChromaDB后端，直接删除通常是有效的。
+            print(f"🗑️ 记忆已删除 (ID: {memory_id})")
+            print(f"🗑️ 记忆已删除 (ID: {memory_id})")
+        except Exception as e:
+            error_msg = f"删除记忆 (ID: {memory_id}) 时出错: {e}"
+            print(error_msg)
+
 if __name__ == "__main__":
     from llama_index.embeddings.ollama import OllamaEmbedding
     from llama_index.llms.ollama import Ollama
@@ -87,6 +144,7 @@ if __name__ == "__main__":
     embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")##
     system_event_queue = asyncio.Queue()
     ai_memory = MemorySystem(embed_model=embed_model, system_event_queue=system_event_queue)
+    asyncio.run(ai_memory.memorize("初音未来又叫miku，是日本著名的虚拟歌姬"))
     asyncio.run(ai_memory.memorize("初音未来又叫miku，是日本著名的虚拟歌姬"))
     
 
