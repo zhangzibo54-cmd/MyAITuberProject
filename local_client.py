@@ -113,20 +113,15 @@ def find_tcp_mapping_from_api(pod_details: dict, internal_port: int) -> tuple | 
             
     return None
 
-pod_id = "3jknn3rd4y1vdm"
+# pod_id = "3jknn3rd4y1vdm"
+# api_key = "rpa_47B0MC40E736K0F7NTBGUSRNFRJSMH6T8AM9UOTTbafjuq"
+# pod_details = get_runpod_pod_details(pod_id = pod_id,api_key =  api_key)
+# public_ip , public_port = find_tcp_mapping_from_api(pod_details,8888) 
+# server_url_path = "/ws/stream_utterances"
+# SERVER_URL = f"ws://{public_ip}:{public_port}{server_url_path}"
 
-api_key = "rpa_NLCK3Y8X4SC3YVIEB769PJEWEDOG1YQV4OPIT6DL1j73xl"
-
-
-pod_details = get_runpod_pod_details(pod_id = pod_id,api_key =  api_key)
-
-public_ip , public_port = find_tcp_mapping_from_api(pod_details,8888) 
-
-
-SERVER_URL = "ws://194.68.245.179:22139/ws/stream_utterances"
-
-server_url_path = "/ws/stream_utterances"
-SERVER_URL = f"ws://{public_ip}:{public_port}{server_url_path}"
+SERVER_URL = "ws://194.68.245.179:22042/ws/stream_utterances" # for test
+print(f"现在服务器地址是：{SERVER_URL}")
 #####📕#####
 
 # --- 新增：用于线程同步的状态标志 ---
@@ -304,7 +299,8 @@ def run_client():
     print("正在连接到服务器...")
     try:
         # 启动 WebSocket 的永久运行循环
-        ws.run_forever()
+        # 增加 ping_interval 和 ping_timeout 参数
+        ws.run_forever(ping_interval=10, ping_timeout=1000)
     except KeyboardInterrupt:
         # 当用户按下 Ctrl+C 时，会触发这个异常
         print("\n捕获到退出信号 (Ctrl+C)... 正在优雅地关闭...")

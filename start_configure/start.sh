@@ -26,8 +26,8 @@ DEFAULT_REF_LANG="zh"
 GPT_SOVITS_PORT=9880
 BIND_ADDRESS="0.0.0.0"
 
-VENV_GPTS="/venv_gpts"
-VENV_OLLAMA="/venv_ollama"
+VENV_GPTS="/workspace/venv_gpts"
+VENV_OLLAMA="/workspace/venv_ollama"
 
 echo "🛠️ 正在修复 GPT-SoVITS 模块导入路径 (PYTHONPATH)..."
 export PYTHONPATH="/app:/app/GPT-SoVITS:/app/GPT-SoVITS/GPT_SoVITS:/app/GPT-SoVITS/GPT_SOVITS/module:/app/GPT-SoVITS/GPT_SOVITS/eres2net:$PYTHONPATH"
@@ -175,8 +175,10 @@ if [ "$IS_REMOTE_SERVER" = "true" ]; then
     source ${VENV_OLLAMA}/bin/activate
     echo "🚀 启动主程序 server.py (LLM/API 逻辑)..."
     # 这里时用unicorn运行的所以需要相对路径而非绝对路径
-    MODULE_PATH="start_configure.server:app"
-    ${VENV_OLLAMA}/bin/uvicorn ${MODULE_PATH} --host 0.0.0.0 --port 8888 &
+    # MODULE_PATH="start_configure.server:app"
+    # ${VENV_OLLAMA}/bin/uvicorn ${MODULE_PATH} --host 0.0.0.0 --port 8888 &
+
+    ${VENV_OLLAMA}/bin/uvicorn server:app --host 0.0.0.0 --port 8888 &
     deactivate
     echo "✅ Ollama 服务和模型和server.py的执行已准备完毕."
 else
