@@ -26,8 +26,8 @@ DEFAULT_REF_LANG="zh"
 GPT_SOVITS_PORT=9880
 BIND_ADDRESS="0.0.0.0"
 
-VENV_GPTS="/workspace/venv_gpts"
-VENV_OLLAMA="/workspace/venv_ollama"
+VENV_GPTS="/app/venv_gpts"
+VENV_OLLAMA="/app/venv_ollama"
 
 echo "🛠️ 正在修复 GPT-SoVITS 模块导入路径 (PYTHONPATH)..."
 export PYTHONPATH="/app:/app/GPT-SoVITS:/app/GPT-SoVITS/GPT_SoVITS:/app/GPT-SoVITS/GPT_SOVITS/module:/app/GPT-SoVITS/GPT_SOVITS/eres2net:$PYTHONPATH"

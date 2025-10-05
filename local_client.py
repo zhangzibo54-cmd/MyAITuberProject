@@ -114,7 +114,7 @@ def find_tcp_mapping_from_api(pod_details: dict, internal_port: int) -> tuple | 
     return None
 
 # pod_id = "3jknn3rd4y1vdm"
-# api_key = "rpa_47B0MC40E736K0F7NTBGUSRNFRJSMH6T8AM9UOTTbafjuq"
+# api_key = ""
 # pod_details = get_runpod_pod_details(pod_id = pod_id,api_key =  api_key)
 # public_ip , public_port = find_tcp_mapping_from_api(pod_details,8888) 
 # server_url_path = "/ws/stream_utterances"
